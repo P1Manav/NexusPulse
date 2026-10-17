@@ -82,6 +82,8 @@ class FeedQuery(BaseModel):
     since: str | None = None
     cursor: str | None = None
     limit: int = 20
+    following: bool = False
+    viewer: str | None = None
 
 
 class FeedResponse(BaseModel):

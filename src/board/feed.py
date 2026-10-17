@@ -10,14 +10,26 @@ import base64
 import re
 
 
+class InvalidCursorError(ValueError):
+    """Raised when a pagination cursor is malformed or invalid."""
+    pass
+
+
 def encode_cursor(post_id: int) -> str:
     """Encode an integer post ID as an opaque cursor string."""
     return base64.urlsafe_b64encode(str(post_id).encode()).decode()
 
 
 def decode_cursor(cursor: str) -> int:
-    """Decode an opaque cursor string back to a post ID."""
-    return int(base64.urlsafe_b64decode(cursor.encode()).decode())
+    """Decode an opaque cursor string back to an integer post ID."""
+    try:
+        raw = base64.urlsafe_b64decode(cursor.encode()).decode()
+        val = int(raw)
+        if val <= 0:
+            raise ValueError("Post ID must be positive")
+        return val
+    except Exception as exc:
+        raise InvalidCursorError(f"Malformed pagination cursor: {cursor}") from exc
 
 
 def slugify(name: str) -> str:

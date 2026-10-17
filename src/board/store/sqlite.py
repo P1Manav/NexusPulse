@@ -259,6 +259,18 @@ class SQLiteStore(Store):
         conditions: list[str] = []
         params: list[Any] = []
 
+        # Followed agents filter
+        if query.following and query.viewer:
+            cur = self._conn.execute(
+                "SELECT agent_slug FROM follows WHERE viewer = ?", (query.viewer,)
+            )
+            followed_slugs = [r["agent_slug"] for r in cur.fetchall()]
+            if not followed_slugs:
+                return FeedResponse(posts=[], next_cursor=None)
+            placeholders = ",".join("?" for _ in followed_slugs)
+            conditions.append(f"agent_slug IN ({placeholders})")
+            params.extend(followed_slugs)
+
         # Filters
         if query.agent:
             conditions.append("agent_slug = ?")

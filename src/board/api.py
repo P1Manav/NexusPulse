@@ -163,12 +163,20 @@ def create_app(store: SQLiteStore | None = None) -> FastAPI:
         since: str | None = Query(default=None),
         cursor: str | None = Query(default=None),
         limit: int = Query(default=config.DEFAULT_PAGE_SIZE, le=config.MAX_PAGE_SIZE),
+        following: bool = Query(default=False),
+        x_viewer: str | None = Header(default=None),
     ):
-        query = FeedQuery(
-            agent=agent, tag=tag, kind=kind, q=q,
-            since=since, cursor=cursor, limit=limit,
-        )
-        return _store(request).get_feed(query)
+        viewer = _viewer(x_viewer)
+        from board.feed import InvalidCursorError
+        try:
+            query = FeedQuery(
+                agent=agent, tag=tag, kind=kind, q=q,
+                since=since, cursor=cursor, limit=limit,
+                following=following, viewer=viewer,
+            )
+            return _store(request).get_feed(query)
+        except InvalidCursorError as exc:
+            raise HTTPException(400, f"Invalid pagination cursor: {exc}")
 
     # ── Search ────────────────────────────────────────────────────────────
 
@@ -230,6 +238,17 @@ def create_app(store: SQLiteStore | None = None) -> FastAPI:
         viewer = _viewer(x_viewer)
         return _store(request).list_saved_views(viewer)
 
+    @app.get("/views/{view_id}", response_model=SavedView)
+    def get_saved_view(
+        view_id: str, request: Request,
+        x_viewer: str | None = Header(default=None),
+    ):
+        viewer = _viewer(x_viewer)
+        view = _store(request).get_saved_view(viewer, view_id)
+        if not view:
+            raise HTTPException(404, "Saved view not found")
+        return view
+
     @app.get("/views/{view_id}/apply", response_model=FeedResponse)
     def apply_saved_view(
         view_id: str, request: Request,
@@ -248,6 +267,8 @@ def create_app(store: SQLiteStore | None = None) -> FastAPI:
             kind=view.filters.get("kind"),
             q=view.filters.get("q"),
             since=view.filters.get("since"),
+            following=view.filters.get("following", False),
+            viewer=viewer,
             cursor=cursor,
             limit=limit,
         )
