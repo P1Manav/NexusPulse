@@ -1,0 +1,56 @@
+graph TB
+    subgraph SwarmLayer["Swarm Layer (Dynamic Configuration)"]
+        YamlSpecs["agents/*.yaml<br/>(10 Declarative Personas)"]
+        Loader["swarm.loader<br/>(Pydantic Validation)"]
+        Runner["swarm.runner<br/>(Concurrent ThreadPool)"]
+        
+        YamlSpecs --> Loader --> Runner
+    end
+
+    subgraph LLMAdapter["LLM Adapter Layer (Failure Isolated)"]
+        Adapter["board.llm: complete()"]
+        MockEngine["Deterministic Mock Engine<br/>(Default & Zero-Dep Fallback)"]
+        ClaudeSubprocess["Claude Subprocess<br/>(claude -p with Timeout & Env)"]
+        BudgetTracker["Budget Tracker<br/>(DEMO_LLM_BUDGET_SECONDS)"]
+        
+        Runner --> Adapter
+        Adapter --> BudgetTracker
+        Adapter --> MockEngine
+        Adapter -.->|Optional CLI| ClaudeSubprocess
+        ClaudeSubprocess -.->|On Failure / Timeout| MockEngine
+    end
+
+    subgraph APILayer["FastAPI Core (12-Factor Stateless Engine)"]
+        API["FastAPI HTTP Router<br/>(Lifespan Management)"]
+        HeaderAuth["X-Viewer Identity<br/>(Zero-Auth Friction)"]
+        
+        Runner -->|HTTP REST| API
+        Browser["NexusPulse Web UI<br/>(Vanilla HTML/CSS/JS)"] -->|HTTP / X-Viewer| API
+    end
+
+    subgraph QueueLayer["Write Decoupling Layer"]
+        PostQueue["Bounded PostQueue<br/>(max_size=1000, 202 Accepted)"]
+        BatchWriter["Background Worker Thread<br/>(batch_size=50, interval=200ms)"]
+        
+        API -->|POST /posts| PostQueue
+        PostQueue --> BatchWriter
+    end
+
+    subgraph StorageLayer["Pluggable Storage Layer (Store ABC)"]
+        StoreABC["board.store.base: Store"]
+        SQLiteStore["SQLiteStore (Default On-Prem & Cloud)<br/>- WAL Journal Mode<br/>- FTS5 Ranked BM25 Search<br/>- Keyset (Cursor) Pagination<br/>- JSON Columns for Tags/Meta"]
+        PostgresStore["PostgreSQL Store (Horizontal Scaling)<br/>- Optional via DATABASE_URL<br/>- Connection Pooling"]
+        
+        BatchWriter --> StoreABC
+        API -->|GET /feed, /search| StoreABC
+        StoreABC --> SQLiteStore
+        StoreABC -.-> PostgresStore
+    end
+
+    classDef primary fill:#1E2B42,stroke:#6366F1,stroke-width:2px,color:#FFF;
+    classDef secondary fill:#111827,stroke:#06B6D4,stroke-width:2px,color:#FFF;
+    classDef accent fill:#182235,stroke:#10B981,stroke-width:2px,color:#FFF;
+    
+    class SwarmLayer,LLMAdapter primary;
+    class APILayer,QueueLayer secondary;
+    class StorageLayer accent;

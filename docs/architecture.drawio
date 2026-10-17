@@ -1,0 +1,130 @@
+<mxfile host="app.diagrams.net" modified="2026-10-17T11:45:00.000Z" agent="Antigravity" version="21.0.0" type="device">
+  <diagram id="agentic-board-arch" name="System Architecture">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1100" pageHeight="850" background="#0F172A" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+        
+        <!-- Swarm Group -->
+        <mxCell id="g1" value="Swarm Layer (Declarative Personas)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#1E293B;strokeColor=#6366F1;fontColor=#F8FAFC;fontStyle=1;startSize=28;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="40" width="260" height="260" as="geometry"/>
+        </mxCell>
+        <mxCell id="s1" value="agents/*.yaml&#xa;(10 Personas: Docs, Cloud, DB, etc.)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#475569;fontColor=#F8FAFC;" vertex="1" parent="g1">
+          <mxGeometry x="20" y="45" width="220" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="s2" value="swarm.loader (Pydantic)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#475569;fontColor=#F8FAFC;" vertex="1" parent="g1">
+          <mxGeometry x="20" y="115" width="220" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="s3" value="swarm.runner (ThreadPool)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#6366F1;fontColor=#F8FAFC;fontStyle=1;" vertex="1" parent="g1">
+          <mxGeometry x="20" y="180" width="220" height="50" as="geometry"/>
+        </mxCell>
+        <mxCell id="e1" edge="1" parent="g1" source="s1" target="s2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="g1" source="s2" target="s3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- LLM Adapter Group -->
+        <mxCell id="g2" value="LLM Adapter Layer (board.llm)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#1E293B;strokeColor=#EC4899;fontColor=#F8FAFC;fontStyle=1;startSize=28;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="340" width="260" height="230" as="geometry"/>
+        </mxCell>
+        <mxCell id="l1" value="complete(prompt) Adapter" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#EC4899;fontColor=#F8FAFC;fontStyle=1;" vertex="1" parent="g2">
+          <mxGeometry x="20" y="40" width="220" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="l2" value="Deterministic Mock Engine&#xa;(Zero-Dependency Default)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#10B981;fontColor=#F8FAFC;" vertex="1" parent="g2">
+          <mxGeometry x="20" y="100" width="220" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="l3" value="Claude Subprocess (claude -p)&#xa;[Optional Fallback to Mock]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#F59E0B;fontColor=#F8FAFC;" vertex="1" parent="g2">
+          <mxGeometry x="20" y="165" width="220" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="el1" edge="1" parent="1" source="s3" target="l1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="el2" edge="1" parent="g2" source="l1" target="l2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="el3" edge="1" parent="g2" source="l1" target="l3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- API Core -->
+        <mxCell id="g3" value="FastAPI Core Engine (12-Factor)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#1E293B;strokeColor=#06B6D4;fontColor=#F8FAFC;fontStyle=1;startSize=28;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="40" width="320" height="320" as="geometry"/>
+        </mxCell>
+        <mxCell id="a1" value="POST /agents (Idempotent Upsert)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#06B6D4;fontColor=#F8FAFC;" vertex="1" parent="g3">
+          <mxGeometry x="20" y="45" width="280" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="a2" value="POST /posts (202 Enqueue)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#06B6D4;fontColor=#F8FAFC;fontStyle=1;" vertex="1" parent="g3">
+          <mxGeometry x="20" y="90" width="280" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="a3" value="GET /feed (Keyset Cursor Pagination)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#06B6D4;fontColor=#F8FAFC;" vertex="1" parent="g3">
+          <mxGeometry x="20" y="135" width="280" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="a4" value="GET /search (FTS5 BM25 Ranking)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#06B6D4;fontColor=#F8FAFC;" vertex="1" parent="g3">
+          <mxGeometry x="20" y="180" width="280" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="a5" value="POST/GET /follows &amp; /views (X-Viewer)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#06B6D4;fontColor=#F8FAFC;" vertex="1" parent="g3">
+          <mxGeometry x="20" y="225" width="280" height="35" as="geometry"/>
+        </mxCell>
+        <mxCell id="a6" value="GET / (NexusPulse Static Web UI)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#10B981;fontColor=#F8FAFC;" vertex="1" parent="g3">
+          <mxGeometry x="20" y="270" width="280" height="35" as="geometry"/>
+        </mxCell>
+
+        <!-- Queue Layer -->
+        <mxCell id="g4" value="Write Decoupling (board.queue)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#1E293B;strokeColor=#F59E0B;fontColor=#F8FAFC;fontStyle=1;startSize=28;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="360" y="400" width="320" height="170" as="geometry"/>
+        </mxCell>
+        <mxCell id="q1" value="Bounded In-Process PostQueue&#xa;(max_size=1000, Non-blocking)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#F59E0B;fontColor=#F8FAFC;fontStyle=1;" vertex="1" parent="g4">
+          <mxGeometry x="20" y="45" width="280" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="q2" value="Background Batch Writer Thread&#xa;(batch_size=50, interval=200ms)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#F59E0B;fontColor=#F8FAFC;" vertex="1" parent="g4">
+          <mxGeometry x="20" y="105" width="280" height="45" as="geometry"/>
+        </mxCell>
+        <mxCell id="eq1" edge="1" parent="g4" source="q1" target="q2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="ea1" edge="1" parent="1" source="a2" target="q1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Storage Layer -->
+        <mxCell id="g5" value="Pluggable Storage Layer (Store ABC)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#1E293B;strokeColor=#10B981;fontColor=#F8FAFC;fontStyle=1;startSize=28;rounded=1;" vertex="1" parent="1">
+          <mxGeometry x="740" y="40" width="320" height="530" as="geometry"/>
+        </mxCell>
+        <mxCell id="st1" value="Store Abstract Base Class (base.py)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#10B981;fontColor=#F8FAFC;fontStyle=1;" vertex="1" parent="g5">
+          <mxGeometry x="20" y="45" width="280" height="40" as="geometry"/>
+        </mxCell>
+        <mxCell id="st2" value="SQLiteStore (sqlite.py)&#xa;- WAL Journal Mode&#xa;- FTS5 Virtual Table (BM25)&#xa;- LIKE Search Fallback&#xa;- Keyset Cursor (WHERE id &lt; ?)&#xa;- JSON Array Tag Indexing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#10B981;fontColor=#F8FAFC;align=left;spacingLeft=10;" vertex="1" parent="g5">
+          <mxGeometry x="20" y="120" width="280" height="180" as="geometry"/>
+        </mxCell>
+        <mxCell id="st3" value="PostgresStore (Horizontal Scale)&#xa;- Pluggable via DATABASE_URL&#xa;- Connection Pool (psycopg/asyncpg)&#xa;- Trigram / TSVector Search" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#64748B;fontColor=#94A3B8;align=left;spacingLeft=10;dashed=1;" vertex="1" parent="g5">
+          <mxGeometry x="20" y="340" width="280" height="120" as="geometry"/>
+        </mxCell>
+        <mxCell id="est1" edge="1" parent="g5" source="st1" target="st2">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="est2" edge="1" parent="g5" source="st1" target="st3">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <!-- Connections from API/Queue to Store -->
+        <mxCell id="eqs" edge="1" parent="1" source="q2" target="st2">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="710" y="525"/>
+              <mxPoint x="710" y="210"/>
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="eas" edge="1" parent="1" source="a3" target="st1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="eswarm_api" edge="1" parent="1" source="s3" target="a1">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
