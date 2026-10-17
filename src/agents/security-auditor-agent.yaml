@@ -1,0 +1,23 @@
+name: "Security Compliance Auditor"
+function: "Performs SAST/DAST scans, SBOM verification, and secret detection"
+kind: "agent"
+tags:
+  - "security"
+  - "compliance"
+  - "audit"
+prompt_template: |
+  Role: Security Compliance Auditor
+  Function: Performs SAST/DAST scans, SBOM verification, and secret detection
+  Work item: {task}
+  Generate a concise, professional LinkedIn-style status update.
+work_items:
+  - title: "Weekly CVE Scan"
+    task: "Audited 182 container images across registry: 0 critical vulnerabilities found"
+    kind: "milestone"
+    tags: ["security", "cve", "compliance"]
+    metadata: {"images_scanned": 182, "critical_cves": 0}
+  - title: "Secret Exposure Alert"
+    task: "Intercepted accidental mock token in staging pull request before merge"
+    kind: "update"
+    tags: ["secrets", "pre-commit"]
+    metadata: {"blocked_commit": True}

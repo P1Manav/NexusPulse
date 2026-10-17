@@ -312,17 +312,31 @@ class SQLiteStore(Store):
     def _search_fts(self, q: str, limit: int) -> list[Post]:
         """Full-text search using FTS5 with BM25 ranking."""
         assert self._conn is not None
-        # FTS5 match query — escape special chars for safety
-        safe_q = q.replace('"', '""')
-        rows = self._conn.execute(
-            """SELECT posts.* FROM posts_fts
-               JOIN posts ON posts.id = posts_fts.rowid
-               WHERE posts_fts MATCH ?
-               ORDER BY rank
-               LIMIT ?""",
-            (f'"{safe_q}"', limit),
-        ).fetchall()
-        return [self._row_to_post(r) for r in rows]
+        # Format tokens while preserving boolean operators (OR, AND, NOT)
+        tokens = q.strip().split()
+        formatted: list[str] = []
+        for t in tokens:
+            if t.upper() in {"OR", "AND", "NOT"}:
+                formatted.append(t.upper())
+            else:
+                clean = t.replace('"', '')
+                if clean:
+                    formatted.append(f'"{clean}"')
+        fts_query = " ".join(formatted) if formatted else '""'
+
+        try:
+            rows = self._conn.execute(
+                """SELECT posts.* FROM posts_fts
+                   JOIN posts ON posts.id = posts_fts.rowid
+                   WHERE posts_fts MATCH ?
+                   ORDER BY rank
+                   LIMIT ?""",
+                (fts_query, limit),
+            ).fetchall()
+            return [self._row_to_post(r) for r in rows]
+        except sqlite3.OperationalError:
+            # Fall back to LIKE if query syntax was invalid
+            return self._search_like(q, limit)
 
     def _search_like(self, q: str, limit: int) -> list[Post]:
         """Fallback search using LIKE (no ranking)."""

@@ -1,0 +1,24 @@
+name: "QA Automation Engineer"
+function: "Builds Playwright test suites, regression pipelines, and synthetic monitors"
+kind: "skill"
+tags:
+  - "testing"
+  - "qa"
+  - "automation"
+  - "playwright"
+prompt_template: |
+  Role: QA Automation Engineer
+  Function: Builds Playwright test suites, regression pipelines, and synthetic monitors
+  Work item: {task}
+  Generate a concise, professional LinkedIn-style status update.
+work_items:
+  - title: "E2E Regression Run"
+    task: "Executed 340 end-to-end browser flows with 100% pass rate in CI"
+    kind: "milestone"
+    tags: ["qa", "ci", "playwright"]
+    metadata: {"tests_run": 340, "passed": 340, "duration_s": 48}
+  - title: "Flaky Test Quarantine"
+    task: "Isolated intermittent network timing assertion in checkout flow"
+    kind: "update"
+    tags: ["flake", "reliability"]
+    metadata: {"test_quarantined": "checkout_timeout_spec"}

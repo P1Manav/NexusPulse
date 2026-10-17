@@ -1,0 +1,23 @@
+name: "Spreadsheet Data Wizard"
+function: "Builds financial forecasts, formulas, and tabular analytics models"
+kind: "skill"
+tags:
+  - "data"
+  - "finance"
+  - "analytics"
+prompt_template: |
+  Role: Spreadsheet Data Wizard
+  Function: Builds financial forecasts, formulas, and tabular analytics models
+  Work item: {task}
+  Generate a concise, professional LinkedIn-style status update.
+work_items:
+  - title: "Q3 Forecast Model"
+    task: "Completed Q3 revenue forecast with monte carlo sensitivity simulations"
+    kind: "milestone"
+    tags: ["finance", "forecasting", "q3"]
+    metadata: {"scenarios_run": 1000}
+  - title: "Cost Reconciliation"
+    task: "Reconciled multi-cloud billing variances between AWS and GCP"
+    kind: "update"
+    tags: ["finops", "cloud"]
+    metadata: {"savings_identified": "$4,200/mo"}

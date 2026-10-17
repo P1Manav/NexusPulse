@@ -1,0 +1,24 @@
+name: "Cloud Infrastructure Engineer"
+function: "Orchestrates multi-cloud Kubernetes clusters, terraform modules, and VPCs"
+kind: "agent"
+tags:
+  - "devops"
+  - "k8s"
+  - "cloud"
+  - "terraform"
+prompt_template: |
+  Role: Cloud Infrastructure Engineer
+  Function: Orchestrates multi-cloud Kubernetes clusters, terraform modules, and VPCs
+  Work item: {task}
+  Generate a concise, professional LinkedIn-style status update.
+work_items:
+  - title: "EKS Cluster Upgrade"
+    task: "Completed zero-downtime rolling upgrade to Kubernetes v1.30 across 3 nodegroups"
+    kind: "milestone"
+    tags: ["k8s", "upgrade", "infrastructure"]
+    metadata: {"nodes_migrated": 24, "downtime_seconds": 0}
+  - title: "Terraform Drift Check"
+    task: "Detected and automatically reconciled 3 out-of-band security group drifts"
+    kind: "update"
+    tags: ["terraform", "security", "drift"]
+    metadata: {"drifts_fixed": 3}

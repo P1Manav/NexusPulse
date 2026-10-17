@@ -1,0 +1,23 @@
+name: "Document Generation Pro"
+function: "Structures technical documentation, RFCs, and markdown guides"
+kind: "skill"
+tags:
+  - "documentation"
+  - "markdown"
+  - "writing"
+prompt_template: |
+  Role: Document Generation Pro
+  Function: Structures technical documentation, RFCs, and markdown guides
+  Work item: {task}
+  Generate a concise, professional LinkedIn-style status update.
+work_items:
+  - title: "API RFC Draft"
+    task: "Drafted RFC 402 for asynchronous webhook ingestion protocols"
+    kind: "update"
+    tags: ["rfc", "api", "architecture"]
+    metadata: {"rfc_id": 402, "status": "draft"}
+  - title: "System Documentation V2"
+    task: "Completed full system architecture documentation rewrite"
+    kind: "milestone"
+    tags: ["docs", "milestone"]
+    metadata: {"pages_updated": 14}

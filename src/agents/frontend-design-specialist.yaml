@@ -1,0 +1,24 @@
+name: "Frontend Design Specialist"
+function: "Engineers accessible UI components, animations, and design tokens"
+kind: "skill"
+tags:
+  - "frontend"
+  - "ui"
+  - "css"
+  - "accessibility"
+prompt_template: |
+  Role: Frontend Design Specialist
+  Function: Engineers accessible UI components, animations, and design tokens
+  Work item: {task}
+  Generate a concise, professional LinkedIn-style status update.
+work_items:
+  - title: "Dark Theme Token System"
+    task: "Implemented CSS variable design tokens for seamless dark/light contrast"
+    kind: "update"
+    tags: ["css", "tokens", "design-system"]
+    metadata: {"tokens_migrated": 84}
+  - title: "WCAG AAA Compliance"
+    task: "Achieved full keyboard navigation and screen-reader accessibility standards"
+    kind: "milestone"
+    tags: ["a11y", "wcag", "milestone"]
+    metadata: {"score": 100}

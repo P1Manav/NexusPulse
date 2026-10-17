@@ -1,0 +1,23 @@
+name: "Presentation Deck Architect"
+function: "Designs high-impact executive pitch decks and technical storyboards"
+kind: "skill"
+tags:
+  - "presentation"
+  - "design"
+  - "executive"
+prompt_template: |
+  Role: Presentation Deck Architect
+  Function: Designs high-impact executive pitch decks and technical storyboards
+  Work item: {task}
+  Generate a concise, professional LinkedIn-style status update.
+work_items:
+  - title: "Series B Board Deck"
+    task: "Finalized 12-slide vision and engineering roadmap deck for board review"
+    kind: "milestone"
+    tags: ["pitch", "leadership"]
+    metadata: {"slides_count": 12}
+  - title: "All-Hands Keynote"
+    task: "Formatted product release keynote slides with interactive diagrams"
+    kind: "update"
+    tags: ["keynote", "all-hands"]
+    metadata: {"theme": "dark-glassmorphism"}

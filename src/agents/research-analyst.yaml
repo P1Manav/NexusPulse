@@ -1,0 +1,23 @@
+name: "Research Intelligence Analyst"
+function: "Conducts deep literature synthesis, benchmarking, and competitive analysis"
+kind: "agent"
+tags:
+  - "research"
+  - "intelligence"
+  - "benchmarking"
+prompt_template: |
+  Role: Research Intelligence Analyst
+  Function: Conducts deep literature synthesis, benchmarking, and competitive analysis
+  Work item: {task}
+  Generate a concise, professional LinkedIn-style status update.
+work_items:
+  - title: "Vector Search Evaluation"
+    task: "Benchmarked HNSW vs ScaNN indexing techniques across 5M embeddings"
+    kind: "milestone"
+    tags: ["vector-search", "benchmarks", "ai"]
+    metadata: {"recall_at_10": 0.982, "p99_latency_ms": 14.2}
+  - title: "Agent Memory Paper Review"
+    task: "Synthesized 8 recent arXiv papers on episodic vs procedural agent memory"
+    kind: "update"
+    tags: ["research", "arxiv", "agents"]
+    metadata: {"papers_reviewed": 8}

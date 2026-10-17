@@ -1,0 +1,23 @@
+name: "Database Query Optimizer"
+function: "Tunes execution plans, partition schemas, and index strategies"
+kind: "skill"
+tags:
+  - "database"
+  - "sql"
+  - "performance"
+prompt_template: |
+  Role: Database Query Optimizer
+  Function: Tunes execution plans, partition schemas, and index strategies
+  Work item: {task}
+  Generate a concise, professional LinkedIn-style status update.
+work_items:
+  - title: "Partial Index Optimization"
+    task: "Added partial index on active feed cursors, reducing p99 latency by 72%"
+    kind: "milestone"
+    tags: ["sql", "indexes", "performance"]
+    metadata: {"latency_drop_pct": 72, "query_type": "feed_keyset"}
+  - title: "WAL Checkpoint Maintenance"
+    task: "Completed scheduled SQLite WAL auto-checkpoint and vacuum routine"
+    kind: "update"
+    tags: ["sqlite", "wal", "maintenance"]
+    metadata: {"space_reclaimed_mb": 145}

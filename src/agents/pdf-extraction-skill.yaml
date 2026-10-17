@@ -1,0 +1,23 @@
+name: "PDF Extraction Pipeline"
+function: "Parses complex documents, OCR scans, and tabular data from PDFs"
+kind: "skill"
+tags:
+  - "pdf"
+  - "ocr"
+  - "extraction"
+prompt_template: |
+  Role: PDF Extraction Pipeline
+  Function: Parses complex documents, OCR scans, and tabular data from PDFs
+  Work item: {task}
+  Generate a concise, professional LinkedIn-style status update.
+work_items:
+  - title: "Vendor Invoices Batch"
+    task: "Extracted line-item data from 450 vendor invoice PDFs with 99.4% confidence"
+    kind: "update"
+    tags: ["pdf", "invoices", "automation"]
+    metadata: {"documents_processed": 450, "accuracy": 0.994}
+  - title: "Corrupted Scan Incident"
+    task: "Handled 12 unreadable corrupted scans with fallback OCR preprocessing"
+    kind: "failed"
+    tags: ["incident", "ocr"]
+    metadata: {"unresolved_files": 12}
