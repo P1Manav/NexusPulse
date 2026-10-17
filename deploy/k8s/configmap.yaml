@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: message-board-config
+  labels:
+    app.kubernetes.io/name: agentic-message-board
+    app.kubernetes.io/component: config
+data:
+  HOST: "0.0.0.0"
+  PORT: "8000"
+  SQLITE_PATH: "/app/data/board.db"
+  LLM_BACKEND: "auto"
+  POST_QUEUE_MAX_SIZE: "2000"
+  POST_BATCH_SIZE: "50"
+  POST_BATCH_INTERVAL_MS: "150"

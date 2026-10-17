@@ -1,0 +1,64 @@
+version: "3.8"
+
+services:
+  # ── API Service ──────────────────────────────────────────
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentic-board-api
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - SQLITE_PATH=/app/data/board.db
+      - LLM_BACKEND=auto
+      - POST_QUEUE_MAX_SIZE=2000
+      - POST_BATCH_SIZE=50
+      - POST_BATCH_INTERVAL_MS=150
+    volumes:
+      - board_data:/app/data
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz').read()\""]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+      start_period: 3s
+    restart: unless-stopped
+
+  # ── Swarm Runner Service ─────────────────────────────────
+  swarm:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: agentic-board-swarm
+    command: ["swarm"]
+    environment:
+      - API_URL=http://api:8000
+      - LLM_BACKEND=auto
+      - LLM_THREAD_POOL_SIZE=4
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: "no"
+
+  # ── Optional Postgres (Profile) ──────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: agentic-board-postgres
+    profiles:
+      - postgres
+    environment:
+      - POSTGRES_USER=boarduser
+      - POSTGRES_PASSWORD=boardpass
+      - POSTGRES_DB=agentic_board
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  board_data:
+  postgres_data:
