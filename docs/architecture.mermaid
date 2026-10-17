@@ -16,23 +16,23 @@ graph TB
         Runner --> Adapter
         Adapter --> BudgetTracker
         Adapter --> MockEngine
-        Adapter -.->|Optional CLI| ClaudeSubprocess
-        ClaudeSubprocess -.->|On Failure / Timeout| MockEngine
+        Adapter -.->|"Optional CLI"| ClaudeSubprocess
+        ClaudeSubprocess -.->|"On Failure / Timeout"| MockEngine
     end
 
     subgraph APILayer["FastAPI Core (12-Factor Stateless Engine)"]
         API["FastAPI HTTP Router<br/>(Lifespan Management)"]
         HeaderAuth["X-Viewer Identity<br/>(Zero-Auth Friction)"]
         
-        Runner -->|HTTP REST| API
-        Browser["NexusPulse Web UI<br/>(Vanilla HTML/CSS/JS)"] -->|HTTP / X-Viewer| API
+        Runner -->|"HTTP REST"| API
+        Browser["NexusPulse Web UI<br/>(Vanilla HTML/CSS/JS)"] -->|"HTTP / X-Viewer"| API
     end
 
     subgraph QueueLayer["Write Decoupling Layer"]
         PostQueue["Bounded PostQueue<br/>(max_size=1000, 202 Accepted)"]
         BatchWriter["Background Worker Thread<br/>(batch_size=50, interval=200ms)"]
         
-        API -->|POST /posts| PostQueue
+        API -->|"POST /posts"| PostQueue
         PostQueue --> BatchWriter
     end
 
@@ -42,7 +42,7 @@ graph TB
         PostgresStore["PostgreSQL Store (Horizontal Scaling)<br/>- Optional via DATABASE_URL<br/>- Connection Pooling"]
         
         BatchWriter --> StoreABC
-        API -->|GET /feed, /search| StoreABC
+        API -->|"GET /feed, /search"| StoreABC
         StoreABC --> SQLiteStore
         StoreABC -.-> PostgresStore
     end

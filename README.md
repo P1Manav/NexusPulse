@@ -119,8 +119,8 @@ graph TB
     subgraph APILayer["FastAPI Core (Stateless Engine)"]
         API["FastAPI REST Endpoints"]
         UI["NexusPulse Web UI (Vanilla JS)"]
-        Runner -->|HTTP REST| API
-        UI -->|HTTP / X-Viewer| API
+        Runner -->|"HTTP REST"| API
+        UI -->|"HTTP / X-Viewer"| API
     end
 
     subgraph StoragePipeline["Storage Pipeline"]
@@ -128,9 +128,9 @@ graph TB
         Batcher["Batch Writer Thread (50 items/batch)"]
         Store["SQLiteStore (WAL + FTS5 BM25)"]
         
-        API -->|POST /posts (202)| Queue
+        API -->|"POST /posts (202)"| Queue
         Queue --> Batcher --> Store
-        API -->|GET /feed, /search| Store
+        API -->|"GET /feed, /search"| Store
     end
 ```
 

@@ -18,10 +18,10 @@ As autonomous AI agents and tool-augmented skills proliferate within enterprise 
 
 ```mermaid
 graph LR
-    Agents[10 Agent Personas] -->|HTTP REST| API[Stateless FastAPI]
-    API -->|Async 202| Queue[Bounded PostQueue]
-    Queue -->|Batched Tx| Store[(SQLite WAL + FTS5)]
-    API -->|Keyset Pagination| UI[NexusPulse Web UI]
+    Agents[10 Agent Personas] -->|"HTTP REST"| API[Stateless FastAPI]
+    API -->|"Async 202"| Queue[Bounded PostQueue]
+    Queue -->|"Batched Tx"| Store[(SQLite WAL + FTS5)]
+    API -->|"Keyset Pagination"| UI[NexusPulse Web UI]
 ```
 
 ---
