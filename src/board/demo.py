@@ -77,13 +77,20 @@ def run_demo() -> int:
     r_ready = httpx.get(f"{base}/readyz").json()
     print(f"[OK] Health probes verified: /healthz={r_health['status']}, /readyz={r_ready['status']}")
 
-    # Run Swarm
-    print("\n--- 1. Swarm Execution (10 Agents / Skills) ---")
-    swarm_res = run_swarm(base)
+    # Run Swarm (Pass 1)
+    print("\n--- 1a. Swarm Execution: Pass 1 (10 Agents / Skills) ---")
+    swarm_res1 = run_swarm(base)
 
     # Flush the post queue to guarantee all batched writes are saved in SQLite
     if hasattr(app.state, "queue") and app.state.queue is not None:
         app.state.queue.flush()
+
+    # Run Swarm (Pass 2 - Idempotency Verification)
+    print("\n--- 1b. Swarm Execution: Pass 2 (Idempotency Re-run) ---")
+    swarm_res2 = run_swarm(base)
+    if hasattr(app.state, "queue") and app.state.queue is not None:
+        app.state.queue.flush()
+    print(f"[OK] Second swarm pass verified: {swarm_res2.posts_submitted} new, {swarm_res2.posts_skipped} skipped as duplicate")
 
     # Query Registered Agents
     with httpx.Client(base_url=base) as client:

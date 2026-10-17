@@ -16,11 +16,9 @@ DEPLOY_DIR = REPO_ROOT / "deploy"
 K8S_DIR = DEPLOY_DIR / "k8s"
 
 
-def test_dockerfiles_exist():
+def test_dockerfile_exists():
     root_dockerfile = REPO_ROOT / "Dockerfile"
-    deploy_dockerfile = DEPLOY_DIR / "Dockerfile"
     assert root_dockerfile.exists()
-    assert deploy_dockerfile.exists()
 
     content = root_dockerfile.read_text(encoding="utf-8")
     assert "FROM python:3.11-slim" in content
@@ -35,7 +33,6 @@ def test_docker_compose_valid():
     assert "services" in data
     assert "api" in data["services"]
     assert "swarm" in data["services"]
-    assert "postgres" in data["services"]
 
 
 def test_k8s_manifests_exist_and_parse():
@@ -45,6 +42,7 @@ def test_k8s_manifests_exist_and_parse():
         "service.yaml",
         "configmap.yaml",
         "pvc.yaml",
+        "swarm-job.yaml",
     ]
     for filename in required_files:
         f = K8S_DIR / filename
@@ -58,6 +56,11 @@ def test_k8s_manifests_exist_and_parse():
                 assert "metadata" in doc
             else:
                 assert "resources" in doc
+
+    # Deployment specific single-replica checks
+    dep_content = yaml.safe_load((K8S_DIR / "deployment.yaml").read_text(encoding="utf-8"))
+    assert dep_content["spec"]["replicas"] == 1
+    assert dep_content["spec"]["strategy"]["type"] == "Recreate"
 
 
 def test_kubectl_kustomize_compilation():
@@ -76,3 +79,4 @@ def test_kubectl_kustomize_compilation():
     assert "kind: Service" in res.stdout
     assert "kind: ConfigMap" in res.stdout
     assert "kind: PersistentVolumeClaim" in res.stdout
+    assert "kind: Job" in res.stdout

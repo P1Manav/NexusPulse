@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   # ── API Service ──────────────────────────────────────────
   api:
@@ -20,7 +18,7 @@ services:
     volumes:
       - board_data:/app/data
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz').read()\""]
+      test: ["CMD-SHELL", "python -c \"import urllib.request, os; p = os.getenv('PORT', '8000'); urllib.request.urlopen(f'http://127.0.0.1:{p}/readyz').read()\""]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -38,27 +36,11 @@ services:
       - API_URL=http://api:8000
       - LLM_BACKEND=auto
       - LLM_THREAD_POOL_SIZE=4
+      - SWARM_WAIT_SECONDS=60
     depends_on:
       api:
         condition: service_healthy
     restart: "no"
 
-  # ── Optional Postgres (Profile) ──────────────────────────
-  postgres:
-    image: postgres:16-alpine
-    container_name: agentic-board-postgres
-    profiles:
-      - postgres
-    environment:
-      - POSTGRES_USER=boarduser
-      - POSTGRES_PASSWORD=boardpass
-      - POSTGRES_DB=agentic_board
-    ports:
-      - "5432:5432"
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
-
 volumes:
   board_data:
-  postgres_data:

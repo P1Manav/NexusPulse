@@ -46,11 +46,19 @@ jobs:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Validate Docker Compose Config
+        run: |
+          docker compose config
+
       - name: Build Docker Container
         run: |
           docker build -t agentic-message-board:test .
 
-      - name: Verify Container Health
+      - name: Run Demo Inside Container
+        run: |
+          docker run --rm agentic-message-board:test demo
+
+      - name: Verify Container Health Probe
         run: |
           docker run -d --name test-api -p 8000:8000 agentic-message-board:test
           sleep 4

@@ -1,5 +1,5 @@
 """
-run.py — Automated runner that parses and executes run.yaml directly.
+run.py — Helper that runs run.yaml locally.
 
 Emulates the exact behavior of the AIntropy Grader Bot:
   1. Reads run.yaml from repo root

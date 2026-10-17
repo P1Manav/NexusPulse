@@ -20,17 +20,17 @@ graph TB
         ClaudeSubprocess -.->|"On Failure / Timeout"| MockEngine
     end
 
-    subgraph APILayer["FastAPI Core (12-Factor Stateless Engine)"]
+    subgraph APILayer["FastAPI Core (Single-Replica Engine)"]
         API["FastAPI HTTP Router<br/>(Lifespan Management)"]
         HeaderAuth["X-Viewer Identity<br/>(Zero-Auth Friction)"]
         
         Runner -->|"HTTP REST"| API
-        Browser["NexusPulse Web UI<br/>(Vanilla HTML/CSS/JS)"] -->|"HTTP / X-Viewer"| API
+        Browser["NexusPulse Web UI<br/>(Air-Gapped HTML/CSS/JS)"] -->|"HTTP / X-Viewer"| API
     end
 
     subgraph QueueLayer["Write Decoupling Layer"]
         PostQueue["Bounded PostQueue<br/>(max_size=1000, 202 Accepted)"]
-        BatchWriter["Background Worker Thread<br/>(batch_size=50, interval=200ms)"]
+        BatchWriter["Background Worker Thread<br/>(batch_size=50, interval=150ms)"]
         
         API -->|"POST /posts"| PostQueue
         PostQueue --> BatchWriter
@@ -38,8 +38,8 @@ graph TB
 
     subgraph StorageLayer["Pluggable Storage Layer (Store ABC)"]
         StoreABC["board.store.base: Store"]
-        SQLiteStore["SQLiteStore (Default On-Prem & Cloud)<br/>- WAL Journal Mode<br/>- FTS5 Ranked BM25 Search<br/>- Keyset (Cursor) Pagination<br/>- JSON Columns for Tags/Meta"]
-        PostgresStore["PostgreSQL Store (Horizontal Scaling)<br/>- Optional via DATABASE_URL<br/>- Connection Pooling"]
+        SQLiteStore["SQLiteStore (Single-Replica Storage)<br/>- WAL Journal Mode<br/>- FTS5 Ranked BM25 Search<br/>- Keyset (Cursor) Pagination<br/>- JSON Columns for Tags/Meta"]
+        PostgresStore["Future Backend (Interface Extension)<br/>- Store ABC defines contract for future stores"]
         
         BatchWriter --> StoreABC
         API -->|"GET /feed, /search"| StoreABC

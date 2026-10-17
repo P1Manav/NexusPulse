@@ -18,6 +18,7 @@ import threading
 import time
 from typing import TYPE_CHECKING
 
+from board import config
 from board.models import PostCreate, Post
 
 if TYPE_CHECKING:
@@ -41,14 +42,19 @@ class PostQueue:
         self._batch_size = batch_size
         self._batch_interval = batch_interval_ms / 1000.0
         self._stop = threading.Event()
+        self._stats_lock = threading.Lock()
+        self._total_written = 0
+        self._total_duplicates = 0
+        self._total_failed_batches = 0
         self._thread = threading.Thread(
             target=self._writer_loop, name="post-queue-writer", daemon=True,
         )
         self._thread.start()
 
-    def put(self, post: PostCreate, timeout: float = 5.0) -> None:
-        """Enqueue a post for batch writing. Blocks if queue is full."""
-        self._queue.put(post, timeout=timeout)
+    def put(self, post: PostCreate, timeout: float | None = None) -> None:
+        """Enqueue a post for batch writing. Raises queue.Full if full after timeout."""
+        t = timeout if timeout is not None else config.POST_QUEUE_PUT_TIMEOUT
+        self._queue.put(post, block=True, timeout=t)
 
     def flush(self) -> None:
         """Block until the queue is fully drained."""
@@ -63,6 +69,21 @@ class PostQueue:
     def pending(self) -> int:
         """Number of posts waiting to be written."""
         return self._queue.qsize()
+
+    @property
+    def total_written(self) -> int:
+        with self._stats_lock:
+            return self._total_written
+
+    @property
+    def total_duplicates(self) -> int:
+        with self._stats_lock:
+            return self._total_duplicates
+
+    @property
+    def total_failed_batches(self) -> int:
+        with self._stats_lock:
+            return self._total_failed_batches
 
     def _writer_loop(self) -> None:
         """Background thread: drain queue in batches."""
@@ -84,8 +105,13 @@ class PostQueue:
 
             if batch:
                 try:
-                    self._store.create_posts_batch(batch)
+                    res = self._store.create_posts_batch(batch)
+                    with self._stats_lock:
+                        self._total_written += getattr(res, "inserted_count", len(res))
+                        self._total_duplicates += getattr(res, "skipped_count", 0)
                 except Exception:
+                    with self._stats_lock:
+                        self._total_failed_batches += 1
                     logger.exception("Failed to write batch of %d posts", len(batch))
                 finally:
                     for _ in batch:
@@ -100,8 +126,13 @@ class PostQueue:
                 break
         if remaining:
             try:
-                self._store.create_posts_batch(remaining)
+                res = self._store.create_posts_batch(remaining)
+                with self._stats_lock:
+                    self._total_written += getattr(res, "inserted_count", len(res))
+                    self._total_duplicates += getattr(res, "skipped_count", 0)
             except Exception:
+                with self._stats_lock:
+                    self._total_failed_batches += 1
                 logger.exception("Failed to write final batch of %d posts", len(remaining))
             finally:
                 for _ in remaining:

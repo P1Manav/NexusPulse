@@ -1,7 +1,7 @@
 """
 board.store.base — Abstract Store interface.
 
-Defines the contract that all storage backends (SQLite, Postgres) must implement.
+Defines the contract that storage backends must implement.
 The API layer depends ONLY on this interface, never on a concrete backend.
 """
 from __future__ import annotations
@@ -56,6 +56,10 @@ class Store(ABC):
     def create_posts_batch(self, items: list[PostCreate]) -> list[Post]:
         """Insert multiple posts in a single transaction."""
 
+    @abstractmethod
+    def post_exists(self, agent_slug: str, dedupe_key: str) -> bool:
+        """Return True if a post with this agent_slug and dedupe_key already exists."""
+
     # ── Feed & Search ─────────────────────────────────────────────────────
 
     @abstractmethod
@@ -63,8 +67,16 @@ class Store(ABC):
         """Filtered, cursor-paginated feed (newest first)."""
 
     @abstractmethod
-    def search(self, q: str, limit: int = 20) -> list[Post]:
-        """Full-text search with ranking. Falls back to LIKE if FTS unavailable."""
+    def search(
+        self,
+        q: str,
+        limit: int = 20,
+        agent: str | None = None,
+        tag: str | None = None,
+        kind: Any | None = None,
+        since: str | None = None,
+    ) -> list[Post]:
+        """Full-text search with ranking and optional filters. Falls back to LIKE if FTS unavailable."""
 
     @abstractmethod
     def has_fts(self) -> bool:

@@ -21,6 +21,7 @@ class WorkItem(BaseModel):
     kind: PostKind = PostKind.UPDATE
     tags: list[str] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
+    key: str | None = None
 
 
 class AgentSpec(BaseModel):

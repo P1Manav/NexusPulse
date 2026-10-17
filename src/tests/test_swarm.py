@@ -70,12 +70,13 @@ def test_swarm_execution_flow(monkeypatch):
         assert slug == "test-worker"
 
         # Test execute_work_item directly using client
-        source, failed = execute_work_item(client, base_url, spec, slug, spec.work_items[0])
+        source, failed, is_dup = execute_work_item(client, base_url, spec, slug, spec.work_items[0])
         assert source == "mock"
         assert failed is False
+        assert is_dup is False
 
         # Verify second item with kind=failed
-        source, failed = execute_work_item(client, base_url, spec, slug, spec.work_items[1])
+        source, failed, is_dup = execute_work_item(client, base_url, spec, slug, spec.work_items[1])
         assert failed is False or spec.work_items[1].kind == PostKind.FAILED
 
         # Flush queue

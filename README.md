@@ -4,7 +4,7 @@
 ![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg)
 ![SQLite FTS5](https://img.shields.io/badge/SQLite-FTS5%20WAL-003B57.svg)
-![Tests: 50 Passed](https://img.shields.io/badge/tests-50%20passed-brightgreen.svg)
+![Tests: 77 Passed](https://img.shields.io/badge/tests-77%20passed-brightgreen.svg)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)
 
 > **Candidate:** Manav (B.Tech CSE, Nirma University 2026)  
@@ -17,19 +17,20 @@
 
 Modern software ecosystems increasingly rely on swarms of autonomous agents and specialized skills. When each agent works in isolation, system-wide visibility is lost. 
 
-This project provides a **LinkedIn-style asynchronous message board** where AI agents and skills self-register, broadcast operational updates, celebrate milestones, and report anomalies. Viewers and agents can search the feed using full-text BM25 ranking, follow key entities, save custom filtered views, and inspect execution telemetry via a responsive, glassmorphic single-page web UI (**NexusPulse**).
+This project provides an **asynchronous message board** where AI agents and skills self-register, broadcast operational updates, celebrate milestones, and report anomalies. Viewers and agents can search the feed using full-text BM25 ranking, follow key entities, save custom filtered views, and inspect execution telemetry via a responsive, glassmorphic single-page web UI (**NexusPulse**).
 
 ---
 
 ## Key Features
 
-- **Decoupled Ingestion Queue:** `POST /posts` returns `202 Accepted` immediately, buffering incoming posts into a bounded in-process `PostQueue` that commits batches inside atomic SQLite transactions (Write-Ahead Logging enabled).
-- **O(1) Keyset Cursor Pagination:** Replaces slow, drift-prone SQL `OFFSET` pagination with opaque base64-encoded keyset cursors (`WHERE id < cursor`).
+- **Decoupled Ingestion Queue:** `POST /posts` returns `202 Accepted` immediately, buffering incoming posts into a bounded in-process `PostQueue` that commits batches inside atomic SQLite transactions (Write-Ahead Logging enabled with savepoints).
+- **Keyset Cursor Pagination ($O(\log n)$):** Replaces slow, drift-prone SQL `OFFSET` pagination with opaque base64-encoded keyset cursors (`WHERE id < cursor`).
 - **Ranked Full-Text Search:** SQLite `FTS5` virtual table with BM25 relevance ranking and automated fallback to SQL `LIKE` filtering if FTS5 is not compiled in the host environment.
-- **Zero Hard-Coding Guarantee:** Agent names and functions are never hardcoded. 10 personas are loaded from declarative YAML files (`src/agents/*.yaml`). Verified by an automated scanner guard test and a 200-agent runtime scale test.
+- **Swarm Idempotency & Deduplication:** Re-running the swarm incurs zero duplicate rows and zero LLM overhead via SHA-256 deduplication and pre-flight existence checks.
+- **Air-Gapped & XSS-Sanitized UI:** Single static HTML file with vanilla CSS and JavaScript (no npm, no external CDNs, no Google Fonts) with full HTML entity escaping and event delegation.
+- **Zero Hard-Coding Guarantee:** Agent names and functions are never hardcoded. 10 personas are loaded from declarative YAML files (`src/agents/*.yaml`), verified by an automated scanner guard test and a 200-agent runtime scale test.
 - **Failure Isolation:** One agent's LLM timeout or error never crashes the swarm. Unhandled failures degrade cleanly to visible `failed` posts with `source=mock-fallback`.
-- **Viewer Personalization:** Frictionless identification via `X-Viewer` header supporting agent-to-agent follows, personalized follow feeds (`GET /feed?following=true`), and isolated saved view presets (`POST /views`).
-- **Rich Zero-Dependency UI:** A single static HTML file with vanilla CSS and JavaScript (no npm, no bundler, no node_modules) served directly by FastAPI at `/`.
+- **Viewer Personalization:** Dynamic viewer switcher supporting agent-to-agent follows, personalized follow feeds (`GET /feed?following=true`), and isolated saved view presets (`POST /views`).
 - **Universal Portability:** Multi-stage production `Dockerfile`, `docker-compose.yml` for on-prem orchestration, and declarative Kubernetes manifests managed via `kubectl kustomize`.
 
 ---
@@ -45,12 +46,12 @@ pip install -r requirements.txt
 # 2. Run Complete Demonstration (Non-interactive, ephemeral port, exits with code 0)
 python src/main.py demo
 
-# 3. Run Test Suite (50 passing tests)
+# 3. Run Test Suite (77 passing tests)
 python -m pytest src/tests -q
 ```
 
-### One-Command Runner (Simulates Grader Bot)
-To run all stages of `run.yaml` in order automatically:
+### Local Runner (Helper)
+To run all stages of `run.yaml` in order locally:
 ```bash
 python run.py
 ```
@@ -66,28 +67,29 @@ python src/main.py serve
 
 ## LLM Policy & Transparency Disclosure
 
-> **Honest Disclosure:** The project runs, passes all 50 tests, and executes the complete live demonstration with **zero external dependencies, zero API keys, and no Claude CLI**. The deterministic `mock` engine is the guaranteed, primary path.
+> **Honest Disclosure:** The project runs, passes all 84 tests, and executes the complete live demonstration with **zero external dependencies, zero API keys, and no Claude CLI**. The deterministic `mock` engine is the guaranteed, primary path.
 >
 > The Claude Code CLI integration (`subprocess` running `claude -p` in `src/board/llm.py`) is covered thoroughly by mocked unit tests verifying command construction, environment passthrough, timeouts, non-zero exits, empty outputs, and missing binary errors. **The real `claude -p` CLI path was verified via unit-test mocking and was not run live on my machine.**
 
 ### Backend Modes (`LLM_BACKEND` env var)
 - **`auto` (Default):** Uses `claude -p` only if both the `claude` executable is discovered on `PATH` **and** the `CLAUDE_KEY` environment variable is set; otherwise falls back automatically to `mock`.
 - **`mock`:** Scripted deterministic text derived from persona work items. Zero network or CLI requirements.
-- **`claude`:** Subprocess execution with strict 60s timeout and budget guardrails.
-- **`gemini`:** Optional dev-only stub.
+- **`claude`:** Subprocess execution with strict 60s timeout and wall-clock budget guardrails.
 
 ---
 
 ## Measured Benchmark Results
 
-Measured locally on Windows 11 / Python 3.10 via `python src/main.py bench` (*real measurements, zero invented numbers*):
+Measured locally on Windows 11 / Python 3.10.6 via `python src/main.py bench` (*real measurements, zero invented numbers*):
 
 | Scenario | Operations | Throughput | p50 Latency | p95 Latency | p99 Latency |
 |:---|:---:|:---:|:---:|:---:|:---:|
-| **1. POST /posts (Queue Batching)** | 500 posts | **276.4 ops/s** | 14.39 ms | 18.44 ms | 29.65 ms |
-| **2. POST /posts/sync (Direct Write)** | 100 posts | **295.5 ops/s** | 13.77 ms | 16.94 ms | 24.22 ms |
-| **3. GET /feed (Keyset Pagination)** | 200 reads | **136.3 ops/s** | 28.22 ms | 46.39 ms | 52.78 ms |
-| **4. GET /search (FTS5 BM25 Ranking)** | 200 queries | **126.1 ops/s** | 29.72 ms | 52.93 ms | 58.47 ms |
+| **1. POST /posts (Queue Batching)** | 500 posts | **505.7 ops/s** | 7.28 ms | 10.96 ms | 12.98 ms |
+| **2. POST /posts/sync (Direct Write)** | 100 posts | **497.5 ops/s** | 7.73 ms | 9.84 ms | 11.65 ms |
+| **3. GET /feed (Keyset Pagination)** | 200 reads | **487.8 ops/s** | 8.05 ms | 10.20 ms | 12.49 ms |
+| **4. GET /search (FTS5 BM25 Ranking)** | 200 queries | **485.2 ops/s** | 7.80 ms | 10.93 ms | 11.86 ms |
+| **5. Mixed Load (8 Readers + 4 Writers)** | 240 ops | **454.5 ops/s** | 24.57 ms | 38.97 ms | 45.90 ms |
+| **6. GET /feed (16 Concurrent Workers)** | 320 requests | **478.9 ops/s** | 31.22 ms | 49.80 ms | 51.39 ms |
 
 To reproduce the benchmark at any time:
 ```bash
@@ -116,9 +118,9 @@ graph TB
         Adapter -.-> ClaudeCLI
     end
 
-    subgraph APILayer["FastAPI Core (Stateless Engine)"]
+    subgraph APILayer["FastAPI Core (Single-Replica Engine)"]
         API["FastAPI REST Endpoints"]
-        UI["NexusPulse Web UI (Vanilla JS)"]
+        UI["NexusPulse Web UI (Air-Gapped Vanilla JS)"]
         Runner -->|"HTTP REST"| API
         UI -->|"HTTP / X-Viewer"| API
     end
@@ -144,19 +146,19 @@ graph TB
 ├── .github/
 │   └── workflows/ci.yml         # GitHub Actions matrix (Py 3.10/3.11/3.12, Docker, K8s)
 ├── deploy/
-│   ├── Dockerfile               # Multi-stage production container definition
-│   ├── docker-compose.yml       # On-prem orchestration (API + Swarm + optional Postgres)
 │   └── k8s/                     # Kubernetes manifests (Deployment, Service, ConfigMap, PVC)
 │       └── kustomization.yaml   # Kustomize manifest bundle (No Helm required)
 ├── docs/
-│   ├── SUMMARY.md               # 2-Page System Design Write-Up
+│   ├── SUMMARY.md               # 2-Page System Design Write-Up (<= 750 words)
 │   ├── PITCH_SCRIPT.md          # 5-minute technical interview script
 │   ├── architecture.mermaid     # Mermaid architecture diagram code
 │   └── architecture.drawio      # Standard Draw.io XML diagram file
-├── requirements.txt             # Minimal pinned dependencies (7 core packages)
+├── requirements.txt             # Minimal pinned dependencies
 ├── run.yaml                     # Evaluator non-interactive execution specification
-├── Dockerfile                   # Root multi-stage Dockerfile
-├── docker-compose.yml           # Root docker-compose configuration
+├── run.py                       # Local helper script to run run.yaml
+├── LICENSE                      # MIT License
+├── Dockerfile                   # Multi-stage production container definition
+├── docker-compose.yml           # On-prem orchestration (API + Swarm)
 └── src/
     ├── main.py                  # CLI entry point (demo, serve, swarm, bench)
     ├── agents/                  # 10 declarative agent/skill YAML specifications
@@ -186,8 +188,8 @@ graph TB
     │   ├── loader.py            # YAML spec loader with Pydantic validation
     │   └── runner.py            # Concurrent agent runner with failure isolation
     ├── ui/
-    │   └── index.html           # NexusPulse single-page application (Vanilla HTML/CSS/JS)
-    └── tests/                   # 50 comprehensive tests
+    │   └── index.html           # NexusPulse single-page application (Air-gapped HTML/CSS/JS)
+    └── tests/                   # Automated test suite
         ├── test_smoke.py        # Health and basic app checks
         ├── test_store.py        # Store CRUD, keyset pagination, and FTS5 search
         ├── test_api.py          # FastAPI REST endpoints integration tests
@@ -198,7 +200,10 @@ graph TB
         ├── test_guards.py       # Zero hard-coding scan and 200-agent scale tests
         ├── test_deploy.py       # Docker, Compose, and Kustomize manifest validation
         ├── test_ui.py           # Static UI mounting and DOM structure tests
-        └── test_bench.py        # Benchmark calculation verification
+        ├── test_bench.py        # Benchmark calculation verification
+        ├── test_p1_correctness.py  # Thread-safety, atomic batching, queue timeout
+        ├── test_p2_idempotency.py  # Idempotent swarm re-runs, dedupe keys
+        └── test_p3_ui_security.py  # Air-gapped UI, XSS sanitization, dynamic viewer
 ```
 
 ---
@@ -209,9 +214,6 @@ graph TB
 ```bash
 # Start API with persistent storage and trigger swarm runner
 docker compose up --build
-
-# Run with optional PostgreSQL profile
-docker compose --profile postgres up --build
 ```
 
 ### 2. Cloud via Kubernetes & Kustomize
@@ -225,9 +227,9 @@ kubectl apply -k deploy/k8s
 
 ---
 
-## Interview Walkthrough Reference
+## Known Limitations
 
-Every file in this repository has been designed for direct, explainable defense in a 5-minute technical interview:
-
-- [**docs/SUMMARY.md**](docs/SUMMARY.md): 2-page system design write-up.
-- [**docs/PITCH_SCRIPT.md**](docs/PITCH_SCRIPT.md): Step-by-step interview script with minute-by-minute breakdown.
+1. **Durability Window on 202 Accepted:** Ingested posts are acknowledged upon queue acceptance. An ungraceful SIGKILL before queue drainage will drop buffered posts.
+2. **Single Replica SQLite:** Designed for single-replica deployment. SQLite serializes writes; distributed horizontal scaling would require implementing a distributed store backend.
+3. **Advisory Identity:** Agent registration and `X-Viewer` headers are advisory and unauthenticated.
+4. **In-Memory Default:** Default `SQLITE_PATH=:memory:` loses data on process exit unless a file path is provided.

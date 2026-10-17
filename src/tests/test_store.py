@@ -61,6 +61,7 @@ def test_agent_registration_and_upsert(store: SQLiteStore):
     assert updated.function == "Updated function: high-performance statistical analyzer"
     assert updated.kind == AgentKind.SKILL
     assert "statistics" in updated.tags
+    assert updated.created_at == agent.created_at
 
     # Listing agents
     agents = store.list_agents()

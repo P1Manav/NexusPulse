@@ -4,15 +4,15 @@ board.llm — Single LLM adapter interface.
 Backends supported:
   - mock (default/fallback): deterministic scripted text, zero network/CLI dependencies.
   - claude: subprocess running 'claude -p', env passed unchanged, clear LLMError.
-  - gemini: dev-only stub.
   - auto (default mode): uses claude if binary is on PATH and CLAUDE_KEY is set; else mock.
 
 Budgeting:
-  Tracks elapsed execution time against DEMO_LLM_BUDGET_SECONDS. Once budget is
+  Tracks elapsed wall-clock execution time against DEMO_LLM_BUDGET_SECONDS. Once budget is
   exhausted, automatically reverts to mock to guarantee deterministic termination.
 """
 from __future__ import annotations
 
+import logging
 import os
 import shutil
 import subprocess
@@ -22,6 +22,8 @@ from typing import NamedTuple
 
 from board import config
 
+logger = logging.getLogger(__name__)
+
 
 class LLMError(Exception):
     """Raised when an LLM call fails (non-zero exit, timeout, missing binary, etc.)."""
@@ -30,32 +32,47 @@ class LLMError(Exception):
 
 class LLMResponse(NamedTuple):
     text: str
-    source: str        # 'mock' | 'claude' | 'gemini' | 'mock-fallback'
+    source: str        # 'mock' | 'claude' | 'mock-fallback'
     failed: bool       # True if primary provider failed and fell back to mock
 
 
 # ── Budget Tracker ─────────────────────────────────────────────────────────
 
 class BudgetTracker:
-    """Thread-safe tracker for LLM invocation duration."""
+    """Thread-safe tracker for LLM wall-clock budget duration."""
 
     def __init__(self, budget_seconds: float):
         self.budget_seconds = budget_seconds
-        self._spent_seconds = 0.0
+        self._start_time: float | None = None
         self._lock = threading.Lock()
+
+    def start_if_not_started(self) -> None:
+        with self._lock:
+            if self._start_time is None:
+                self._start_time = time.monotonic()
 
     def record(self, duration: float) -> None:
         with self._lock:
-            self._spent_seconds += duration
+            if self._start_time is None:
+                self._start_time = time.monotonic() - duration
+            else:
+                curr_elapsed = time.monotonic() - self._start_time
+                if duration > curr_elapsed:
+                    self._start_time = time.monotonic() - duration
 
     def has_budget(self) -> bool:
         with self._lock:
-            return self._spent_seconds < self.budget_seconds
+            if self._start_time is None:
+                return True
+            elapsed = time.monotonic() - self._start_time
+            return elapsed < self.budget_seconds
 
     @property
     def spent(self) -> float:
         with self._lock:
-            return self._spent_seconds
+            if self._start_time is None:
+                return 0.0
+            return max(0.0, time.monotonic() - self._start_time)
 
 
 _global_budget = BudgetTracker(config.DEMO_LLM_BUDGET_SECONDS)
@@ -81,23 +98,25 @@ def is_claude_available() -> bool:
 
 
 def build_claude_command(prompt: str) -> list[str]:
-    """Construct command line arguments for Claude CLI.
-
-    unverified against live CLI; confirm prompt-passing in official Claude Code docs.
-    """
+    """Construct command line arguments for Claude CLI."""
     return ["claude", "-p", prompt]
 
 
 # ── Mock Implementation ────────────────────────────────────────────────────
 
-def _mock_complete(prompt: str) -> str:
-    """Deterministic scripted response derived from prompt contents."""
+def _mock_complete(prompt: str, fallback_text: str | None = None) -> str:
+    """Deterministic scripted response derived from prompt contents or explicit fallback."""
+    if fallback_text:
+        return fallback_text
+
+    # Extract strictly the 'Work item:' line up to newline, without prompt instruction contamination
+    for line in prompt.splitlines():
+        line_clean = line.strip()
+        if line_clean.startswith("Work item:"):
+            item_text = line_clean[len("Work item:"):].strip()
+            return f"Completed work item: {item_text} [verified]"
+
     cleaned = prompt.strip().replace("\r\n", " ").replace("\n", " ")
-    # Produce clean, readable simulated update
-    if "Work item:" in cleaned:
-        item_part = cleaned.split("Work item:", 1)[1].strip()
-        summary = item_part.split(".")[0].strip()
-        return f"Completed work item: {summary} [verified]"
     if "Role:" in cleaned:
         role_part = cleaned.split("Role:", 1)[1].strip().split(".")[0]
         return f"Operational update from {role_part}: task executed successfully."
@@ -138,33 +157,27 @@ def _call_claude(prompt: str, timeout: int | None = None) -> str:
     return output
 
 
-def _call_gemini(prompt: str) -> str:
-    """Dev-only optional Gemini backend stub."""
-    key = os.getenv("GEMINI_API_KEY", "").strip()
-    if not key:
-        raise LLMError("GEMINI_API_KEY is not configured")
-    # Dev-only fallback
-    return f"[Gemini Dev] Simulated response for: {prompt[:60]}"
-
-
 # ── Main Adapter Entry Points ──────────────────────────────────────────────
 
 def resolve_backend(requested: str | None = None) -> str:
-    """Resolve backend choice (auto, claude, mock, gemini)."""
+    """Resolve backend choice (auto, claude, mock)."""
     target = (requested or os.getenv("LLM_BACKEND") or config.LLM_BACKEND).lower()
     if target == "auto":
         if is_claude_available() and _global_budget.has_budget():
             return "claude"
         return "mock"
-    return target
+    if target in ("claude", "mock"):
+        return target
+    logger.warning("Unrecognized LLM backend '%s'; defaulting to mock", target)
+    return "mock"
 
 
-def complete(prompt: str, backend: str | None = None) -> str:
+def complete(prompt: str, backend: str | None = None, fallback_text: str | None = None) -> str:
     """Execute completion and return response string directly.
 
     If claude fails or budget is exhausted, falls back to mock.
     """
-    resp = complete_with_metadata(prompt, backend=backend)
+    resp = complete_with_metadata(prompt, backend=backend, fallback_text=fallback_text)
     return resp.text
 
 
@@ -172,6 +185,7 @@ def complete_with_metadata(
     prompt: str,
     backend: str | None = None,
     fallback_to_mock: bool = True,
+    fallback_text: str | None = None,
 ) -> LLMResponse:
     """Execute completion and return LLMResponse with source and failure flags.
 
@@ -181,31 +195,23 @@ def complete_with_metadata(
     selected = resolve_backend(backend)
 
     if selected == "mock":
-        return LLMResponse(text=_mock_complete(prompt), source="mock", failed=False)
-
-    if selected == "gemini":
-        try:
-            res = _call_gemini(prompt)
-            return LLMResponse(text=res, source="gemini", failed=False)
-        except Exception as exc:
-            if not fallback_to_mock:
-                raise
-            return LLMResponse(
-                text=f"{_mock_complete(prompt)} (gemini-fallback: {exc})",
-                source="mock-fallback",
-                failed=True,
-            )
+        return LLMResponse(
+            text=_mock_complete(prompt, fallback_text=fallback_text),
+            source="mock",
+            failed=False,
+        )
 
     if selected == "claude":
         # Check budget before firing
         if not _global_budget.has_budget():
             return LLMResponse(
-                text=_mock_complete(prompt),
+                text=_mock_complete(prompt, fallback_text=fallback_text),
                 source="mock-fallback",
                 failed=False,
             )
 
         start = time.monotonic()
+        _global_budget.start_if_not_started()
         try:
             res = _call_claude(prompt)
             duration = time.monotonic() - start
@@ -217,10 +223,13 @@ def complete_with_metadata(
             if not fallback_to_mock:
                 raise
             return LLMResponse(
-                text=f"{_mock_complete(prompt)} [fallback: {exc}]",
+                text=f"{_mock_complete(prompt, fallback_text=fallback_text)} [fallback: {exc}]",
                 source="mock-fallback",
                 failed=True,
             )
 
-    # Unknown backend -> default to mock
-    return LLMResponse(text=_mock_complete(prompt), source="mock", failed=False)
+    return LLMResponse(
+        text=_mock_complete(prompt, fallback_text=fallback_text),
+        source="mock",
+        failed=False,
+    )

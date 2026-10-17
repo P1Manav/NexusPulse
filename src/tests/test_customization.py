@@ -24,7 +24,7 @@ from board.store.sqlite import SQLiteStore
 def client():
     store = SQLiteStore(":memory:")
     store.init()
-    app = create_app(store=store)
+    app = create_app(store=store, enable_sync=True)
     with TestClient(app) as test_client:
         yield test_client
     store.close()

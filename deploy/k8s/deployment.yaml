@@ -6,7 +6,11 @@ metadata:
     app.kubernetes.io/name: agentic-message-board
     app.kubernetes.io/component: api
 spec:
+  # SQLite allows concurrent readers in WAL mode, but requires a single serialized writer.
+  # Replicas must stay 1 until a distributed storage backend is provisioned.
   replicas: 1
+  strategy:
+    type: Recreate # Required: PVC is ReadWriteOnce and SQLite requires single-writer access
   selector:
     matchLabels:
       app.kubernetes.io/name: agentic-message-board
@@ -23,7 +27,7 @@ spec:
         fsGroup: 1000
       containers:
         - name: api
-          image: ghcr.io/p1manav/agentic-message-board:latest
+          image: agentic-message-board:latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: http

@@ -5,8 +5,9 @@ Orchestrates agent self-registration and work item dispatch:
   1. Loads all agent YAML specifications from src/agents/.
   2. Registers each agent with the API via POST /agents (idempotent).
   3. Executes work items across agents concurrently (bounded thread pool).
-  4. Calls llm.complete_with_metadata with failure isolation.
-  5. Posts updates to the message board via POST /posts.
+  4. Checks /posts/exists to skip already published items (idempotency).
+  5. Calls llm.complete_with_metadata with failure isolation.
+  6. Posts updates to the message board via POST /posts with dedupe_key.
 
 Failure isolation guarantee:
   If an individual agent's LLM call fails, that agent posts a visible
@@ -15,8 +16,10 @@ Failure isolation guarantee:
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 
@@ -31,17 +34,33 @@ from swarm.loader import AgentSpec, WorkItem, load_all_agent_specs
 logger = logging.getLogger(__name__)
 
 
+def compute_dedupe_key(agent_slug: str, item: WorkItem, force_id: str | None = None) -> str:
+    """Calculate dedupe key: work_item.key or first 32 hex chars of sha256(agent_slug|title|task)."""
+    if item.key:
+        base_key = item.key
+    else:
+        raw = f"{agent_slug}|{item.title}|{item.task}"
+        base_key = hashlib.sha256(raw.encode("utf-8")).hexdigest()[:32]
+    if force_id:
+        return f"{base_key}-{force_id}"
+    return base_key
+
+
 class SwarmResult:
     """Summary of swarm execution."""
 
     def __init__(self):
         self.agents_registered: int = 0
         self.posts_submitted: int = 0
+        self.posts_skipped: int = 0
         self.posts_failed: int = 0
         self.sources_used: dict[str, int] = {}
         self.duration_seconds: float = 0.0
 
-    def record_post(self, source: str, is_failed: bool):
+    def record_post(self, source: str, is_failed: bool, is_duplicate: bool = False):
+        if is_duplicate:
+            self.posts_skipped += 1
+            return
         self.posts_submitted += 1
         if is_failed:
             self.posts_failed += 1
@@ -56,7 +75,10 @@ def register_agent_http(client: httpx.Client, base_url: str, spec: AgentSpec) ->
         "kind": spec.kind.value,
         "tags": spec.tags,
     }
-    resp = client.post(f"{base_url}/agents", json=payload, timeout=10.0)
+    headers = {}
+    if config.BOARD_API_KEY:
+        headers["Authorization"] = f"Bearer {config.BOARD_API_KEY}"
+    resp = client.post(f"{base_url}/agents", json=payload, headers=headers, timeout=10.0)
     resp.raise_for_status()
     data = resp.json()
     return data["slug"]
@@ -68,22 +90,43 @@ def execute_work_item(
     spec: AgentSpec,
     slug: str,
     item: WorkItem,
-) -> tuple[str, bool]:
-    """Execute a single work item with LLM completion and post to board."""
-    # Build prompt from template
-    prompt = spec.prompt_template.format(
-        name=spec.name,
-        function=spec.function,
-        task=item.task,
-        title=item.title,
-    )
+    force_id: str | None = None,
+) -> tuple[str, bool, bool]:
+    """Execute a single work item with idempotency check, LLM completion, and post to board.
+    
+    Returns: (source, is_failed, is_duplicate)
+    """
+    dedupe_key = compute_dedupe_key(slug, item, force_id=force_id)
 
-    # Call LLM adapter with failure isolation
+    # Step 1: Pre-check if post exists BEFORE calling LLM (zero Claude/mock cost on duplicate)
+    try:
+        check_r = client.get(
+            f"{base_url}/posts/exists",
+            params={"agent_slug": slug, "dedupe_key": dedupe_key},
+            timeout=5.0,
+        )
+        if check_r.status_code == 200 and check_r.json().get("exists") is True:
+            return "skipped", False, True
+    except Exception as exc:
+        logger.warning("Failed to pre-check /posts/exists for %s: %s", slug, exc)
+
+    # Step 2: Format prompt and call LLM adapter with failure isolation
+    fallback_text = f"Completed work item: {item.task} [verified]"
     llm_resp: LLMResponse
     try:
-        llm_resp = complete_with_metadata(prompt, fallback_to_mock=True)
+        prompt = spec.prompt_template.format(
+            name=spec.name,
+            function=spec.function,
+            task=item.task,
+            title=item.title,
+        )
+        llm_resp = complete_with_metadata(
+            prompt,
+            fallback_to_mock=True,
+            fallback_text=fallback_text,
+        )
     except Exception as exc:
-        # Extreme fallback in case adapter raises unexpectedly
+        logger.error("Execution failed for work item '%s' (%s): %s", item.title, slug, exc)
         llm_resp = LLMResponse(
             text=f"Task execution failed: {item.task} ({exc})",
             source="mock-fallback",
@@ -105,38 +148,48 @@ def execute_work_item(
             "llm_source": llm_resp.source,
         },
         "source": llm_resp.source,
+        "dedupe_key": dedupe_key,
     }
 
+    headers = {}
+    if config.BOARD_API_KEY:
+        headers["Authorization"] = f"Bearer {config.BOARD_API_KEY}"
+
     try:
-        r = client.post(f"{base_url}/posts", json=post_payload, timeout=10.0)
+        r = client.post(f"{base_url}/posts", json=post_payload, headers=headers, timeout=10.0)
         r.raise_for_status()
+        if r.status_code == 200 and r.json().get("status") == "duplicate":
+            return llm_resp.source, False, True
     except Exception as exc:
         logger.error(f"Failed to submit post for {slug}: {exc}")
-        return llm_resp.source, True
+        return llm_resp.source, True, False
 
-    return llm_resp.source, llm_resp.failed
+    return llm_resp.source, llm_resp.failed, False
 
 
 def run_swarm(
     base_url: str,
     specs: list[AgentSpec] | None = None,
     max_workers: int | None = None,
+    force: bool = False,
+    client: httpx.Client | None = None,
 ) -> SwarmResult:
     """Execute the full agent swarm against a running API."""
     result = SwarmResult()
     start_time = time.monotonic()
+    force_id = uuid.uuid4().hex[:8] if force else None
 
     agent_specs = specs if specs is not None else load_all_agent_specs()
     workers = max_workers or config.LLM_THREAD_POOL_SIZE
 
-    print(f"[*] Starting Swarm Execution: {len(agent_specs)} agents configured (workers={workers})")
+    print(f"[*] Starting Swarm Execution: {len(agent_specs)} agents configured (workers={workers}, force={force})")
 
-    with httpx.Client() as client:
+    def _execute(http_client: httpx.Client) -> None:
         # Step 1: Self-register all agents
         slug_map: dict[str, str] = {}
         for spec in agent_specs:
             try:
-                slug = register_agent_http(client, base_url, spec)
+                slug = register_agent_http(http_client, base_url, spec)
                 slug_map[spec.name] = slug
                 result.agents_registered += 1
             except Exception as exc:
@@ -158,35 +211,55 @@ def run_swarm(
         # Step 3: Run concurrently via bounded thread pool
         with ThreadPoolExecutor(max_workers=workers) as executor:
             futures = [
-                executor.submit(execute_work_item, client, base_url, spec, slug, item)
+                executor.submit(execute_work_item, http_client, base_url, spec, slug, item, force_id)
                 for (spec, slug, item) in tasks
             ]
 
             for future in as_completed(futures):
                 try:
-                    source_used, is_failed = future.result()
-                    result.record_post(source_used, is_failed)
+                    source_used, is_failed, is_duplicate = future.result()
+                    result.record_post(source_used, is_failed, is_duplicate=is_duplicate)
                 except Exception as exc:
                     logger.error("Unexpected worker thread error: %s", exc)
-                    result.record_post("mock-fallback", True)
+                    result.record_post("mock-fallback", True, is_duplicate=False)
+
+    if client is not None:
+        _execute(client)
+    else:
+        with httpx.Client() as c:
+            _execute(c)
 
     result.duration_seconds = time.monotonic() - start_time
     print(f"[OK] Swarm completed in {result.duration_seconds:.2f}s:")
-    print(f"     Posts submitted: {result.posts_submitted}")
+    print(f"     new: {result.posts_submitted}, skipped as duplicate: {result.posts_skipped}")
     print(f"     Sources breakdown: {result.sources_used}")
     return result
 
 
-def run_swarm_cli() -> None:
-    """CLI handler for `python src/main.py swarm`."""
-    # Pre-flight check: is the API server running?
-    try:
-        r = httpx.get(f"{config.API_URL}/healthz", timeout=2.0)
-        if r.status_code != 200:
-            print(f"[ERROR] API at {config.API_URL} responded with status {r.status_code}")
-            return
-    except Exception:
-        print(f"[ERROR] Cannot connect to API server at {config.API_URL}")
+def run_swarm_cli(
+    force: bool = False,
+    loop: bool = False,
+    interval: float = 5.0,
+) -> None:
+    """CLI handler for `python src/main.py swarm` with automated readiness polling and optional loop mode."""
+    api_url = config.API_URL
+    wait_seconds = getattr(config, "SWARM_WAIT_SECONDS", 60)
+    start_wait = time.monotonic()
+    ready = False
+
+    print(f"[*] Connecting to API at {api_url} (polling /readyz up to {wait_seconds}s)...")
+    while time.monotonic() - start_wait < wait_seconds:
+        try:
+            r = httpx.get(f"{api_url}/readyz", timeout=3.0)
+            if r.status_code == 200:
+                ready = True
+                break
+        except Exception:
+            pass
+        time.sleep(1.0)
+
+    if not ready:
+        print(f"[ERROR] Cannot connect to API server at {api_url} within {wait_seconds}s timeout.")
         print("\nThe 'swarm' command requires a running API server to post updates to.")
         print("Please choose one of the following:")
         print("  Option 1: Start the server in another terminal, then run swarm:")
@@ -196,4 +269,18 @@ def run_swarm_cli() -> None:
         print("            python src/main.py demo\n")
         return
 
-    run_swarm(config.API_URL)
+    print(f"[OK] API at {api_url} is ready. Proceeding with swarm execution.")
+    if not loop:
+        run_swarm(api_url, force=force)
+        return
+
+    print(f"[*] Running swarm in continuous loop mode (interval={interval:.1f}s, press Ctrl+C to stop)...")
+    cycle = 1
+    try:
+        while True:
+            print(f"\n--- Swarm Cycle {cycle} ---")
+            run_swarm(api_url, force=force)
+            cycle += 1
+            time.sleep(interval)
+    except KeyboardInterrupt:
+        print("\n[!] Swarm continuous loop stopped by user.")
