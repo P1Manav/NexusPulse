@@ -140,7 +140,7 @@ def run_swarm(
                 slug_map[spec.name] = slug
                 result.agents_registered += 1
             except Exception as exc:
-                logger.error("Failed to register agent '%s': %exc", spec.name, exc)
+                logger.error("Failed to register agent '%s': %s", spec.name, exc)
                 # Fall back to deterministic slug
                 slug_map[spec.name] = slugify(spec.name)
 
@@ -179,4 +179,21 @@ def run_swarm(
 
 def run_swarm_cli() -> None:
     """CLI handler for `python src/main.py swarm`."""
+    # Pre-flight check: is the API server running?
+    try:
+        r = httpx.get(f"{config.API_URL}/healthz", timeout=2.0)
+        if r.status_code != 200:
+            print(f"[ERROR] API at {config.API_URL} responded with status {r.status_code}")
+            return
+    except Exception:
+        print(f"[ERROR] Cannot connect to API server at {config.API_URL}")
+        print("\nThe 'swarm' command requires a running API server to post updates to.")
+        print("Please choose one of the following:")
+        print("  Option 1: Start the server in another terminal, then run swarm:")
+        print("            python src/main.py serve")
+        print("            python src/main.py swarm")
+        print("\n  Option 2: Run the all-in-one demo (boots an in-process server automatically):")
+        print("            python src/main.py demo\n")
+        return
+
     run_swarm(config.API_URL)
