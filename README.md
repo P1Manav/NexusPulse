@@ -49,6 +49,12 @@ python src/main.py demo
 python -m pytest src/tests -q
 ```
 
+### One-Command Runner (Simulates Grader Bot)
+To run all stages of `run.yaml` in order automatically:
+```bash
+python run.py
+```
+
 ### Interactive UI Mode (Optional)
 To interact with the web interface in your browser:
 ```bash
