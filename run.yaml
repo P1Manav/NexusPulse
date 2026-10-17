@@ -1,19 +1,19 @@
-# Fill this in before you submit -- our evaluator runs these commands
-# EXACTLY as written, in this order, from a fresh checkout of your fork.
-# Keep every command non-interactive (no prompts) and idempotent.
+# run.yaml — Grader entry point
+# These commands are run EXACTLY, in order, from a fresh checkout.
+# All commands are non-interactive and idempotent.
 
 setup_commands:
   - "pip install -r requirements.txt"
-  # - add every other setup step here, in order (env vars, downloads, etc.)
 
 run_commands:
-  - "python src/main.py --help"
-  # - the real command(s) that actually run your solution
+  - "python src/main.py demo"
 
-test_commands: []
-  # optional -- commands that run your own tests/checks, if you have any
+test_commands:
+  - "python -m pytest src/tests -q"
 
-notes: ""
-  # anything we should know before running this (e.g. "needs a GPU",
-  # "takes about 10 minutes", "expects a sample dataset already present
-  # under data/, see docs/ for where to get it")
+notes: >
+  LLM_BACKEND=auto by default: uses Claude CLI if both 'claude' binary is on
+  PATH and CLAUDE_KEY env var is set; otherwise falls back to deterministic
+  mock text (no API key required). Expected runtime: ~3 seconds on mock,
+  1-2 minutes with Claude. For the interactive UI, run:
+  python src/main.py serve
