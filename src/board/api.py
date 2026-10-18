@@ -337,6 +337,12 @@ def create_app(
         since: str | None = Query(default=None),
         limit: int = Query(default=20, ge=1, le=100),
     ):
+        if since is not None and since.strip():
+            from board.feed import normalize_iso_timestamp
+            try:
+                since = normalize_iso_timestamp(since)
+            except Exception as exc:
+                raise HTTPException(422, f"Invalid 'since' timestamp, must be ISO-8601: {exc}")
         return _store(request).search(
             q=q, limit=limit, agent=agent, tag=tag, kind=kind, since=since
         )

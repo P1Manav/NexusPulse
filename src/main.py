@@ -57,12 +57,11 @@ def main(argv: list[str] | None = None) -> int:
 
     if args.command == "swarm":
         from swarm.runner import run_swarm_cli
-        run_swarm_cli(
+        return run_swarm_cli(
             force=getattr(args, "force", False),
             loop=getattr(args, "loop", False),
             interval=getattr(args, "interval", 5.0),
         )
-        return 0
 
     if args.command == "bench":
         from board.bench import run_bench

@@ -16,6 +16,7 @@ Failure isolation guarantee:
 """
 from __future__ import annotations
 
+import datetime as dt
 import hashlib
 import logging
 import time
@@ -46,6 +47,22 @@ def compute_dedupe_key(agent_slug: str, item: WorkItem, force_id: str | None = N
     return base_key
 
 
+class WorkItemResult(tuple):
+    """Result tuple (source, failed, is_duplicate) with extra submit_error attribute."""
+    source: str
+    failed: bool
+    is_duplicate: bool
+    submit_error: bool
+
+    def __new__(cls, source: str, failed: bool, is_duplicate: bool, submit_error: bool = False):
+        instance = super().__new__(cls, (source, failed, is_duplicate))
+        instance.source = source
+        instance.failed = failed
+        instance.is_duplicate = is_duplicate
+        instance.submit_error = submit_error
+        return instance
+
+
 class SwarmResult:
     """Summary of swarm execution."""
 
@@ -57,13 +74,20 @@ class SwarmResult:
         self.sources_used: dict[str, int] = {}
         self.duration_seconds: float = 0.0
 
-    def record_post(self, source: str, is_failed: bool, is_duplicate: bool = False):
+    def record_post(
+        self,
+        source: str,
+        is_failed: bool,
+        is_duplicate: bool = False,
+        submit_error: bool = False,
+    ):
         if is_duplicate:
             self.posts_skipped += 1
             return
-        self.posts_submitted += 1
-        if is_failed:
+        if submit_error:
             self.posts_failed += 1
+            return
+        self.posts_submitted += 1
         self.sources_used[source] = self.sources_used.get(source, 0) + 1
 
 
@@ -106,7 +130,7 @@ def execute_work_item(
             timeout=5.0,
         )
         if check_r.status_code == 200 and check_r.json().get("exists") is True:
-            return "skipped", False, True
+            return WorkItemResult("skipped", False, True, submit_error=False)
     except Exception as exc:
         logger.warning("Failed to pre-check /posts/exists for %s: %s", slug, exc)
 
@@ -154,8 +178,12 @@ def execute_work_item(
             cat = "other"
         metadata["llm_error"] = cat
 
-    # Failed posts must not be deduplicated forever; omit dedupe_key so next run retries
-    post_dedupe_key = None if llm_resp.failed else dedupe_key
+    # A3: Failed posts get a daily dedupe_key so at most ONE failed post per work item per day exists
+    if llm_resp.failed:
+        today_utc = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
+        post_dedupe_key = f"failed-{dedupe_key}-{today_utc}"
+    else:
+        post_dedupe_key = dedupe_key
 
     post_payload = {
         "agent_slug": slug,
@@ -175,12 +203,12 @@ def execute_work_item(
         r = client.post(f"{base_url}/posts", json=post_payload, headers=headers, timeout=10.0)
         r.raise_for_status()
         if r.status_code == 200 and r.json().get("status") == "duplicate":
-            return llm_resp.source, False, True
+            return WorkItemResult(llm_resp.source, False, True, submit_error=False)
     except Exception as exc:
         logger.error(f"Failed to submit post for {slug}: {exc}")
-        return llm_resp.source, True, False
+        return WorkItemResult(llm_resp.source, True, False, submit_error=True)
 
-    return llm_resp.source, llm_resp.failed, False
+    return WorkItemResult(llm_resp.source, llm_resp.failed, False, submit_error=False)
 
 
 def run_swarm(
@@ -233,11 +261,15 @@ def run_swarm(
 
             for future in as_completed(futures):
                 try:
-                    source_used, is_failed, is_duplicate = future.result()
-                    result.record_post(source_used, is_failed, is_duplicate=is_duplicate)
+                    res = future.result()
+                    source_used = res[0]
+                    is_failed = res[1]
+                    is_duplicate = res[2]
+                    submit_err = getattr(res, "submit_error", False)
+                    result.record_post(source_used, is_failed, is_duplicate=is_duplicate, submit_error=submit_err)
                 except Exception as exc:
                     logger.error("Unexpected worker thread error: %s", exc)
-                    result.record_post("mock-fallback", True, is_duplicate=False)
+                    result.record_post("mock-fallback", True, is_duplicate=False, submit_error=True)
 
     if client is not None:
         _execute(client)
@@ -256,7 +288,7 @@ def run_swarm_cli(
     force: bool = False,
     loop: bool = False,
     interval: float = 5.0,
-) -> None:
+) -> int:
     """CLI handler for `python src/main.py swarm` with automated readiness polling and optional loop mode."""
     api_url = config.API_URL
     wait_seconds = getattr(config, "SWARM_WAIT_SECONDS", 60)
@@ -283,20 +315,27 @@ def run_swarm_cli(
         print("            python src/main.py swarm")
         print("\n  Option 2: Run the all-in-one demo (boots an in-process server automatically):")
         print("            python src/main.py demo\n")
-        return
+        return 1
 
     print(f"[OK] API at {api_url} is ready. Proceeding with swarm execution.")
     if not loop:
-        run_swarm(api_url, force=force)
-        return
+        res = run_swarm(api_url, force=force)
+        pf = getattr(res, "posts_failed", 0)
+        failed_count = pf if isinstance(pf, (int, float)) else 0
+        return 1 if failed_count > 0 else 0
 
     print(f"[*] Running swarm in continuous loop mode (interval={interval:.1f}s, press Ctrl+C to stop)...")
     cycle = 1
+    last_cycle_failed = False
     try:
         while True:
             print(f"\n--- Swarm Cycle {cycle} ---")
-            run_swarm(api_url, force=force)
+            res = run_swarm(api_url, force=force)
+            pf = getattr(res, "posts_failed", 0)
+            failed_count = pf if isinstance(pf, (int, float)) else 0
+            last_cycle_failed = (failed_count > 0)
             cycle += 1
             time.sleep(interval)
     except KeyboardInterrupt:
         print("\n[!] Swarm continuous loop stopped by user.")
+        return 1 if last_cycle_failed else 0

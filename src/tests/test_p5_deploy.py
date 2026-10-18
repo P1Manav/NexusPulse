@@ -83,8 +83,11 @@ def test_swarm_cli_readiness_polling(monkeypatch, capsys):
 
     with patch("httpx.get", side_effect=mock_get):
         with patch("swarm.runner.run_swarm") as mock_run:
+            from swarm.runner import SwarmResult
+            mock_run.return_value = SwarmResult()
             monkeypatch.setattr(config, "SWARM_WAIT_SECONDS", 10)
-            run_swarm_cli()
+            code = run_swarm_cli()
+            assert code == 0
             mock_run.assert_called_once()
             captured = capsys.readouterr().out
             assert "is ready. Proceeding with swarm execution." in captured

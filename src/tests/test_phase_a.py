@@ -65,15 +65,16 @@ def test_a1_failed_posts_not_deduplicated_forever():
         )
 
     assert res1.posts_submitted == 1
-    assert res1.posts_failed == 1
+    assert res1.posts_failed == 0
     assert res1.posts_skipped == 0
     app.state.queue.flush()
 
-    # Verify post in DB has kind=failed and no dedupe_key
+    # Verify post in DB has kind=failed and daily dedupe_key
     feed_r = client.get("/feed").json()
     assert len(feed_r["posts"]) == 1
     assert feed_r["posts"][0]["kind"] == "failed"
-    assert feed_r["posts"][0]["dedupe_key"] is None
+    assert feed_r["posts"][0]["dedupe_key"] is not None
+    assert feed_r["posts"][0]["dedupe_key"].startswith("failed-")
 
     # Pass 2: LLM succeeds (healthy)
     healthy_response = LLMResponse(
@@ -237,7 +238,7 @@ def test_a4_migration_order_crash(tmp_path):
         "INSERT INTO agents VALUES ('legacy-bot', 'Legacy Bot', 'Legacy worker', 'agent', '[\"legacy\"]', '2026-01-01T00:00:00+00:00', '2026-01-01T00:00:00+00:00')"
     )
     raw_conn.execute(
-        "INSERT INTO posts (agent_slug, text, kind, tags, metadata, source, created_at) VALUES ('legacy-bot', 'Pre-migration post content', 'update', '[\"legacy-tag\", \"v1\"]', '{}', 'mock', '2026-01-01T00:00:00+00:00')"
+        "INSERT INTO posts (agent_slug, text, kind, tags, metadata, source, created_at) VALUES ('legacy-bot', 'Pre-migration post searchable content', 'update', '[\"legacy-tag\", \"v1\"]', '{}', 'mock', '2026-01-01T00:00:00+00:00')"
     )
     raw_conn.commit()
     raw_conn.close()
@@ -247,10 +248,15 @@ def test_a4_migration_order_crash(tmp_path):
     store.init()
 
     try:
+        # A4: Verify old post is searchable via FTS5 rebuild
+        search_res = store.search("searchable")
+        assert len(search_res) == 1
+        assert "searchable" in search_res[0].text
+
         # Verify old post is queryable via tag filter (backfill check)
         feed = store.get_feed(FeedQuery(tag="legacy-tag"))
         assert len(feed.posts) == 1
-        assert feed.posts[0].text == "Pre-migration post content"
+        assert "searchable" in feed.posts[0].text
 
         # Verify a new post with dedupe_key inserts and deduplication functions
         new_post = PostCreate(

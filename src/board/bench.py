@@ -170,7 +170,7 @@ def run_benchmarks(base_url: str, app_instance) -> list[ScenarioResult]:
         search_duration = time.perf_counter() - start_time
         results.append(compute_metrics("4. GET /search (FTS5 BM25 Ranking)", search_latencies, search_duration))
 
-        # ── Scenario 5: Mixed Load (8 Readers + 4 Writers) ────────────
+        # ── Scenario 5: Mixed Load (12 workers, 1/3 writes) ────────────
         mixed_ops = 240
         mixed_workers = 12
 
@@ -190,14 +190,14 @@ def run_benchmarks(base_url: str, app_instance) -> list[ScenarioResult]:
             resp.raise_for_status()
             return (time.perf_counter() - t0) * 1000.0
 
-        print(f"[*] Running Scenario 5: Mixed Load ({mixed_ops} ops, 8 readers + 4 writers)...")
+        print(f"[*] Running Scenario 5: Mixed Load ({mixed_ops} ops, 12 workers, 1/3 writes)...")
         start_time = time.perf_counter()
         with ThreadPoolExecutor(max_workers=mixed_workers) as pool:
             mixed_latencies = list(pool.map(mixed_op, range(mixed_ops)))
         mixed_duration = time.perf_counter() - start_time
         if hasattr(app_instance.state, "queue") and app_instance.state.queue is not None:
             app_instance.state.queue.flush()
-        results.append(compute_metrics("5. Mixed Load (8 Readers + 4 Writers)", mixed_latencies, mixed_duration))
+        results.append(compute_metrics("5. Mixed Load (12 workers, 1/3 writes)", mixed_latencies, mixed_duration))
 
         # ── Scenario 6: High Concurrency (16 Concurrent Workers) ──────
         high_ops = 320

@@ -198,6 +198,29 @@ class SQLiteStore(Store):
                 USING fts5(text, agent_slug, tags, content=posts, content_rowid=id)
             """)
             self._fts_available = True
+            try:
+                posts_count_row = self._conn.execute("SELECT COUNT(*) as count FROM posts").fetchone()
+                posts_cnt = posts_count_row["count"] if posts_count_row else 0
+                if posts_cnt > 0:
+                    needs_rebuild = False
+                    try:
+                        docsize_row = self._conn.execute("SELECT COUNT(*) as count FROM posts_fts_docsize").fetchone()
+                        if docsize_row and docsize_row["count"] < posts_cnt:
+                            needs_rebuild = True
+                    except sqlite3.OperationalError:
+                        pass
+                    if not needs_rebuild:
+                        try:
+                            fts_count_row = self._conn.execute("SELECT COUNT(*) as count FROM posts_fts").fetchone()
+                            if fts_count_row and fts_count_row["count"] < posts_cnt:
+                                needs_rebuild = True
+                        except sqlite3.OperationalError:
+                            pass
+                    if needs_rebuild:
+                        self._conn.execute("INSERT INTO posts_fts(posts_fts) VALUES('rebuild')")
+                        self._conn.commit()
+            except sqlite3.OperationalError:
+                pass
         except sqlite3.OperationalError:
             self._fts_available = False
 
@@ -554,8 +577,9 @@ class SQLiteStore(Store):
             conditions.append("posts.kind = ?")
             params.append(kind_val)
         if since:
+            norm_since = normalize_iso_timestamp(since) or since
             conditions.append("posts.created_at >= ?")
-            params.append(since)
+            params.append(norm_since)
 
         where_clause = " AND ".join(conditions)
         params.append(limit)
