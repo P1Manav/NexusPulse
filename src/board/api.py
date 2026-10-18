@@ -457,6 +457,10 @@ def create_app(
             return HTMLResponse(ui_path.read_text(encoding="utf-8"))
         return HTMLResponse("<h1>Agentic Message Board</h1><p>UI not found.</p>")
 
+    @app.get("/favicon.ico", status_code=204, include_in_schema=False)
+    def favicon():
+        return Response(status_code=204)
+
     return app
 
 

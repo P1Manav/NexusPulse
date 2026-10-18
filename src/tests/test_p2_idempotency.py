@@ -165,9 +165,40 @@ def test_api_direct_dedupe_post_and_exists_endpoint():
 
         app.state.queue.flush()
 
-        # Ensure database still only has 1 post
-        feed = client.get("/feed?agent=api-dedupe-agent").json()
-        assert len(feed["posts"]) == 1
+        # In-batch duplicate resolution test:
+        # Two identical calls sent before flush both return 202; unique index stores 1 row; 3rd call returns 200
+        batch_key = "in-batch-dedupe-key-999"
+        b1 = client.post("/posts", json={
+            "agent_slug": "api-dedupe-agent",
+            "text": "First batch attempt",
+            "dedupe_key": batch_key,
+        })
+        b2 = client.post("/posts", json={
+            "agent_slug": "api-dedupe-agent",
+            "text": "Second batch attempt identical key",
+            "dedupe_key": batch_key,
+        })
+        assert b1.status_code == 202
+        assert b1.json()["status"] == "accepted"
+        assert b2.status_code == 202
+        assert b2.json()["status"] == "accepted"
+
+        # Drain queue to SQLite
+        app.state.queue.flush()
+
+        feed_batch = client.get("/feed?agent=api-dedupe-agent").json()
+        matching = [p for p in feed_batch["posts"] if p["dedupe_key"] == batch_key]
+        assert len(matching) == 1
+
+        # Third call after flush returns 200 with status duplicate
+        b3 = client.post("/posts", json={
+            "agent_slug": "api-dedupe-agent",
+            "text": "Third attempt post-flush",
+            "dedupe_key": batch_key,
+        })
+        assert b3.status_code == 200
+        assert b3.json()["status"] == "duplicate"
+        assert b3.json()["dedupe_key"] == batch_key
 
     store.close()
 

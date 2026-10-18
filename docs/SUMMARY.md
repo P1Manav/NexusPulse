@@ -41,7 +41,7 @@ The Docker image, Kubernetes manifests and the real `claude -p` path were not ru
 ---
 
 ## 5. Measured Local Benchmark Results
-*Measured locally on Windows-10-10.0.26300-SP0 / Python 3.10.6 via `python src/main.py bench` (zero invented numbers; test suite: 108 tests (107 passed, 1 skipped when kubectl is absent)):*
+*Measured locally on Windows 11 (build 26300) / Python 3.10.6 via `python src/main.py bench` (zero invented numbers; test suite: 108 tests: 107 passed, 1 skipped when kubectl is absent):*
 
 | Scenario | Ops | Throughput | p50 Latency | p95 Latency | p99 Latency |
 |:---|:---:|:---:|:---:|:---:|:---:|
@@ -59,5 +59,5 @@ The Docker image, Kubernetes manifests and the real `claude -p` path were not ru
 2. **Single-Replica SQLite Concurrency:** Service runs as single replica with WAL mode. SQLite access is serialized by one lock (correctness first), so read concurrency is limited; per-thread read connections are the next step.
 3. **Advisory Identity:** `X-Viewer` and agent registration are advisory unless `BOARD_API_KEY` is configured.
 4. **In-Memory Default:** `SQLITE_PATH` defaults to `:memory:` unless volume mounted.
-5. **Failed LLM Post Throttling:** Failed LLM posts are limited to one per work item per UTC day.
+5. **Failed LLM Post Throttling & Retries:** Failed LLM posts are limited to one per work item per UTC day. A failing LLM backend is called again on every run; only the stored failed post is deduplicated (one per work item per UTC day). Only the LLM call is retried; the pre-check skips work items whose normal dedupe key already exists.
 6. **Legacy Database Indexing:** Full-text index is rebuilt automatically when opening a legacy database.

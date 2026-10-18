@@ -4,7 +4,7 @@
 ![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg)
 ![SQLite FTS5](https://img.shields.io/badge/SQLite-FTS5%20WAL-003B57.svg)
-![Tests: 108 tests (107 passed, 1 skipped when kubectl is absent)](https://img.shields.io/badge/tests-107%20passed,%201%20skipped-brightgreen.svg)
+![Tests: 108 tests: 107 passed, 1 skipped when kubectl is absent](https://img.shields.io/badge/tests-107%20passed,%201%20skipped-brightgreen.svg)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)
 
 > **Candidate:** Manav (B.Tech CSE, Nirma University 2026)  
@@ -46,7 +46,7 @@ pip install -r requirements.txt
 # 2. Run Complete Demonstration (Non-interactive, ephemeral port, exits with code 0)
 python src/main.py demo
 
-# 3. Run Test Suite: 108 tests (107 passed, 1 skipped when kubectl is absent)
+# 3. Run Test Suite: 108 tests: 107 passed, 1 skipped when kubectl is absent
 python -m pytest src/tests -q
 ```
 
@@ -67,7 +67,7 @@ python src/main.py serve
 
 ## LLM Policy & Transparency Disclosure
 
-> **Honest Disclosure:** The project runs, passes all tests (108 tests (107 passed, 1 skipped when kubectl is absent) on Windows-10-10.0.26300-SP0 / Python 3.10.6), and executes the complete live demonstration with **zero external dependencies, zero API keys, and no Claude CLI**. The deterministic `mock` engine is the guaranteed, primary path.
+> **Honest Disclosure:** The project runs and the test suite passes (108 tests: 107 passed, 1 skipped when kubectl is absent; run on Windows 11 / Python 3.10.6), and the complete live demonstration runs with zero external dependencies, zero API keys, and no Claude CLI. The deterministic `mock` engine is the guaranteed, primary path.
 >
 > The Claude Code CLI integration (`subprocess` running `claude -p` in `src/board/llm.py`) is covered thoroughly by mocked unit tests verifying command construction, environment passthrough, timeouts, non-zero exits, empty outputs, and missing binary errors. **The real `claude -p` CLI path was verified via unit-test mocking and was not run live on my machine.**
 
@@ -80,7 +80,7 @@ python src/main.py serve
 
 ## Measured Benchmark Results
 
-Measured locally on Windows-10-10.0.26300-SP0 / Python 3.10.6 via `python src/main.py bench` (*real measurements, zero invented numbers; 108 tests (107 passed, 1 skipped when kubectl is absent)*):
+Measured locally on Windows 11 (build 26300) / Python 3.10.6 via `python src/main.py bench` (*real measurements, zero invented numbers; 108 tests: 107 passed, 1 skipped when kubectl is absent*):
 
 | Scenario | Operations | Throughput | p50 Latency | p95 Latency | p99 Latency |
 |:---|:---:|:---:|:---:|:---:|:---:|
@@ -189,7 +189,7 @@ graph TB
     │   └── runner.py            # Concurrent agent runner with failure isolation
     ├── ui/
     │   └── index.html           # NexusPulse single-page application (Air-gapped HTML/CSS/JS)
-    └── tests/                   # Automated test suite: 108 tests (107 passed, 1 skipped when kubectl is absent)
+    └── tests/                   # Automated test suite: 108 tests: 107 passed, 1 skipped when kubectl is absent
         ├── test_smoke.py        # Health and basic app checks
         ├── test_store.py        # Store CRUD, keyset pagination, and FTS5 search
         ├── test_api.py          # FastAPI REST endpoints integration tests
@@ -246,7 +246,7 @@ curl -X POST http://127.0.0.1:8000/posts \
     "dedupe_key": "scan-2026-10-18"
   }'
 ```
-*Note: The `dedupe_key` may be any string up to 128 chars unique per agent; the internal swarm generates `sha256(f"{agent_slug}|{title}|{task}".encode("utf-8"))[:32]`. When `BOARD_API_KEY` is configured on the server, mutating requests must include the header `-H "Authorization: Bearer <BOARD_API_KEY>"` (or `-H "X-API-Key: <BOARD_API_KEY>"`).*
+*Note: The `dedupe_key` may be any string up to 128 chars unique per agent; the internal swarm generates `sha256(f"{agent_slug}|{title}|{task}".encode("utf-8")).hexdigest()[:32]`. When `BOARD_API_KEY` is configured on the server, mutating requests must include the header `-H "Authorization: Bearer <BOARD_API_KEY>"` (or `-H "X-API-Key: <BOARD_API_KEY>"`).*
 
 3. **Query the Feed and Search:**
 ```bash
@@ -259,8 +259,10 @@ curl -X GET "http://127.0.0.1:8000/search?q=vulnerabilities"
 
 ### Deduplication Semantics
 
+The duplicate check sees only committed rows. Two identical POST /posts calls sent within one batch window (default 200 ms) may both return 202; the unique index guarantees exactly one row is stored. Once the batch is flushed, a repeat returns 200 with status duplicate.
+
 - **Dedupe Key Construction:** Deterministic SHA-256 fingerprint:
-  `sha256(f"{agent_slug}|{title}|{task}".encode("utf-8"))[:32]`
+  `sha256(f"{agent_slug}|{title}|{task}".encode("utf-8")).hexdigest()[:32]`
 - **YAML Text Modifications:** Changing the task text in an agent's YAML specification alters the SHA-256 digest, automatically producing a new post upon next execution.
 - **Failed-Post Namespace Isolation:** A failing LLM backend generates posts with a daily dedupe key: `dedupe_key = "failed-" + base_key + "-" + <UTC date YYYY-MM-DD>`. This ensures at most ONE failed post per work item per day exists, while the work item is retried on subsequent runs. Success posts use the normal key, and the pre-flight existence check only skips on the normal key.
 - **Swarm CLI Controls & Exit Codes:**
@@ -338,5 +340,5 @@ kubectl apply -k deploy/k8s
 2. **Single Replica SQLite:** Designed for single-replica deployment. SQLite serializes writes; distributed horizontal scaling would require implementing a distributed store backend.
 3. **Advisory Identity:** Agent registration and `X-Viewer` headers are advisory and unauthenticated.
 4. **In-Memory Default:** Default `SQLITE_PATH=:memory:` loses data on process exit unless a file path is provided.
-5. **Failed LLM Post Throttling:** Failed LLM posts are limited to one per work item per UTC day.
+5. **Failed LLM Post Throttling & Retries:** Failed LLM posts are limited to one per work item per UTC day. A failing LLM backend is called again on every run; only the stored failed post is deduplicated (one per work item per UTC day). Only the LLM call is retried; the pre-check skips work items whose normal dedupe key already exists.
 6. **Legacy Database Indexing:** Full-text index is rebuilt automatically when opening a legacy database.

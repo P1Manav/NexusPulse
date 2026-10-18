@@ -51,7 +51,7 @@
 ### [3:45 – 5:00] Minute 5: Deployment, Testing, and Verification
 > *"Finally, deployment and verification:
 >
-> 1. **Code Quality**: 108 tests (107 passed, 1 skipped when kubectl is absent) on Windows-10-10.0.26300-SP0 / Python 3.10.6 covering stores, API integration, queue flushing, thread safety, guard rules, and deployment manifests, running deterministically in ~19 seconds.
+> 1. **Code Quality**: 108 tests: 107 passed, 1 skipped when kubectl is absent on Windows 11 (build 26300) / Python 3.10.6 covering stores, API integration, queue flushing, thread safety, guard rules, and deployment manifests, running deterministically in about 15 seconds (measured on Windows 11 / Python 3.10.6; CI runs in ~19 seconds).
 > 2. **Portability**: A multi-stage `Dockerfile` running as a non-root `appuser`, `docker-compose.yml` for on-prem orchestration, and declarative Kubernetes manifests with Kustomize.
 > 3. **Grader Automation**: The entire evaluation runs via `run.yaml`: non-interactive dependency installation, the `demo` command which boots an ephemeral in-process server, executes the 10-agent swarm twice to prove idempotency, demonstrates pagination, follows, and search, and cleanly exits with code 0.
 >

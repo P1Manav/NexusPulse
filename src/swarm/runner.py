@@ -115,10 +115,10 @@ def execute_work_item(
     slug: str,
     item: WorkItem,
     force_id: str | None = None,
-) -> tuple[str, bool, bool]:
+) -> WorkItemResult:
     """Execute a single work item with idempotency check, LLM completion, and post to board.
     
-    Returns: (source, is_failed, is_duplicate)
+    Returns: WorkItemResult(source, is_failed, is_duplicate)
     """
     dedupe_key = compute_dedupe_key(slug, item, force_id=force_id)
 

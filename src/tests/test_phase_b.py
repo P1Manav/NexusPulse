@@ -276,6 +276,15 @@ def test_b8_posts_sync_duplicate_dedupe_key():
 
 
 def test_b9_ui_favicon_link():
-    """B9: index.html contains data: URI favicon link to prevent /favicon.ico 404s."""
+    """B9: index.html contains data: URI favicon link and GET /favicon.ico returns 204 No Content."""
     ui_html = (config.UI_DIR / "index.html").read_text(encoding="utf-8")
     assert '<link rel="icon" href="data:,' in ui_html
+
+    # B2: GET /favicon.ico returns 204 No Content with no body, excluded from OpenAPI schema
+    app = create_app()
+    client = TestClient(app)
+    resp = client.get("/favicon.ico")
+    assert resp.status_code == 204
+    assert resp.content == b""
+    openapi = client.get("/openapi.json").json()
+    assert "/favicon.ico" not in openapi.get("paths", {})
