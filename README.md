@@ -4,7 +4,7 @@
 ![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg)
 ![SQLite FTS5](https://img.shields.io/badge/SQLite-FTS5%20WAL-003B57.svg)
-![Tests: 108 tests: 107 passed, 1 skipped when kubectl is absent](https://img.shields.io/badge/tests-107%20passed,%201%20skipped-brightgreen.svg)
+![Tests: 108 tests: all 108 pass when kubectl is installed; 107 pass and 1 skips when it is not](https://img.shields.io/badge/tests-108%20collected-brightgreen.svg)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)
 
 > **Candidate:** Manav (B.Tech CSE, Nirma University 2026)  
@@ -46,7 +46,7 @@ pip install -r requirements.txt
 # 2. Run Complete Demonstration (Non-interactive, ephemeral port, exits with code 0)
 python src/main.py demo
 
-# 3. Run Test Suite: 108 tests: 107 passed, 1 skipped when kubectl is absent
+# 3. Run Test Suite: 108 tests: all 108 pass when kubectl is installed; 107 pass and 1 skips when it is not
 python -m pytest src/tests -q
 ```
 
@@ -67,7 +67,7 @@ python src/main.py serve
 
 ## LLM Policy & Transparency Disclosure
 
-> **Honest Disclosure:** The project runs and the test suite passes (108 tests: 107 passed, 1 skipped when kubectl is absent; run on Windows 11 / Python 3.10.6), and the complete live demonstration runs with zero external dependencies, zero API keys, and no Claude CLI. The deterministic `mock` engine is the guaranteed, primary path.
+> **Honest Disclosure:** The project runs and the test suite passes (108 tests: all 108 pass when kubectl is installed; 107 pass and 1 skips when it is not; run on Windows 11 (build 26300) / Python 3.10.6), and the complete live demonstration runs with zero external dependencies, zero API keys, and no Claude CLI. The deterministic `mock` engine is the guaranteed, primary path.
 >
 > The Claude Code CLI integration (`subprocess` running `claude -p` in `src/board/llm.py`) is covered thoroughly by mocked unit tests verifying command construction, environment passthrough, timeouts, non-zero exits, empty outputs, and missing binary errors. **The real `claude -p` CLI path was verified via unit-test mocking and was not run live on my machine.**
 
@@ -80,7 +80,7 @@ python src/main.py serve
 
 ## Measured Benchmark Results
 
-Measured locally on Windows 11 (build 26300) / Python 3.10.6 via `python src/main.py bench` on 2026-10-18 (*real measurements, zero invented numbers; 108 tests: 107 passed, 1 skipped when kubectl is absent*):
+Measured locally on Windows 11 (build 26300) / Python 3.10.6 via `python src/main.py bench` on 2026-10-18 (*real measurements, zero invented numbers; 108 tests: all 108 pass when kubectl is installed; 107 pass and 1 skips when it is not*):
 
 | Scenario | Operations | Throughput | p50 Latency | p95 Latency | p99 Latency |
 |:---|:---:|:---:|:---:|:---:|:---:|
@@ -90,6 +90,8 @@ Measured locally on Windows 11 (build 26300) / Python 3.10.6 via `python src/mai
 | **4. GET /search (FTS5 BM25 Ranking)** | 200 queries | **550.9 ops/s** | 7.04 ms | 8.43 ms | 9.44 ms |
 | **5. Mixed Load (12 workers, 1/3 writes)** | 240 ops | **498.3 ops/s** | 23.75 ms | 26.62 ms | 27.80 ms |
 | **6. GET /feed (16 Concurrent Workers)** | 320 requests | **487.4 ops/s** | 31.14 ms | 36.08 ms | 55.59 ms |
+
+*Single runs on a developer workstation; throughput and latency vary noticeably between runs (the same machine produced 271.9 and 498.3 ops/s for the mixed-load scenario on two runs), so treat these as indicative, not precise.*
 
 To reproduce the benchmark at any time:
 ```bash
@@ -189,7 +191,7 @@ graph TB
     │   └── runner.py            # Concurrent agent runner with failure isolation
     ├── ui/
     │   └── index.html           # NexusPulse single-page application (Air-gapped HTML/CSS/JS)
-    └── tests/                   # Automated test suite: 108 tests: 107 passed, 1 skipped when kubectl is absent
+    └── tests/                   # Automated test suite: 108 tests: all 108 pass when kubectl is installed; 107 pass and 1 skips when it is not
         ├── test_smoke.py        # Health and basic app checks
         ├── test_store.py        # Store CRUD, keyset pagination, and FTS5 search
         ├── test_api.py          # FastAPI REST endpoints integration tests
@@ -351,14 +353,17 @@ kubectl apply -k deploy/k8s
 
 | Check | Result | Evidence |
 |:---|:---:|:---|
-| **B1: Fresh clone + run.yaml** | **PASS** | `pip install`, `demo`, and `pytest` all exited 0 (108 passed, 17 warnings in 15.38s) on Python 3.10.6 in temp venv. |
-| **B2: Demo repeatability (20 runs)** | **PASS** | 20/20 runs exited 0 with 0 errors/tracebacks; all runs showed 20 new then 20 duplicate. |
-| **B3: Python version matrix** | **PASS** (3.10) / **NOT VERIFIED** (3.11, 3.12) | Python 3.10 passed all tests; Python 3.11 not installed; Python 3.12 binary missing from filesystem. |
-| **B4: Live server + README curls** | **PASS** | All 7 curl steps succeeded against live server; temp DB contained exactly 1 row for dedupe_key. |
-| **B5: Swarm CLI tests** | **PASS** | Swarm run 1 exited with code 0 (20 new), run 2 exited with code 0 (20 items duplicate-skipped), unused port failed with exit code 1. |
-| **B6: Docker verification** | **PASS** | Compose config valid, container demo exited 0, healthy in 6s, runs as non-root appuser, temp image/container cleaned up. |
-| **B7: Kubernetes verification** | **PASS** | Kustomize rendered Deployment (replicas=1, Recreate), Service, ConfigMap, PVC, and Job; cluster context not configured so dry-run skipped. |
-| **B8: Live Claude path** | **NOT VERIFIED** | Not verified on this machine: CLAUDE_KEY environment variable is not set. |
-| **B9: GitHub Actions status** | **PASS** | `gh run list` confirms run 39113128555 on main concluded success (duration 36s). |
-| **B10: Benchmark refresh** | **PASS** | `python src/main.py bench` executed on Windows 11 (build 26300) / Python 3.10.6; all 6 scenarios completed with 487-551 ops/s. |
+| **Fresh clone + run.yaml** | **PASS** | `pip install`, `demo`, and `pytest` all exited 0 (108 passed, 0 skipped (kubectl present on that machine), 17 warnings in 15.38s) on Python 3.10.6 in temp venv. |
+| **Demo repeatability (20 runs)** | **PASS** | 20/20 runs exited 0 with 0 errors/tracebacks; all runs showed 20 new then 20 duplicate. |
+| **Python version matrix** | **PASS** (3.10) / **NOT VERIFIED** (3.11, 3.12) | Python 3.10 passed all tests; Python 3.11 not installed; Python 3.12 binary missing from filesystem. |
+| **Live server + README curls** | **PASS** | All 7 curl steps succeeded against live server; temp DB contained exactly 1 row for dedupe_key. |
+| **Swarm CLI tests** | **PASS** | Swarm run 1 exited with code 0 (20 new), run 2 exited with code 0 (20 items duplicate-skipped), unused port failed with exit code 1. |
+| **Docker verification** | **PASS** | Compose config valid, container demo exited 0, healthy in 6s, runs as non-root appuser, temp image/container cleaned up. |
+| **Kubernetes verification** | **PASS** | Kustomize rendered Deployment (replicas=1, Recreate), Service, ConfigMap, PVC, and Job; cluster context not configured so dry-run skipped. |
+| **Live Claude path** | **NOT VERIFIED** | Not verified on this machine: CLAUDE_KEY environment variable is not set. |
+| **GitHub Actions status** | **PASS** | `gh run list` confirms latest run on main concluded success at the time of verification (duration 36s). |
+| **Benchmark refresh** | **PASS** | `python src/main.py bench` executed on Windows 11 (build 26300) / Python 3.10.6; all 6 scenarios completed with 487-551 ops/s. |
+
+*Not covered by these checks: the Python 3.11 and 3.12 interpreters (CI's matrix runs them) and the real `claude -p` CLI path (no CLAUDE_KEY on that machine).*
+
 

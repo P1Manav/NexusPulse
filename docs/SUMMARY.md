@@ -41,7 +41,7 @@ The Docker image, Kubernetes manifests and the real `claude -p` path were not ru
 ---
 
 ## 5. Measured Local Benchmark Results
-*Measured locally on Windows 11 (build 26300) / Python 3.10.6 via `python src/main.py bench` on 2026-10-18 (zero invented numbers; test suite: 108 tests: 107 passed, 1 skipped when kubectl is absent):*
+*Measured locally on Windows 11 (build 26300) / Python 3.10.6 via `python src/main.py bench` on 2026-10-18 (zero invented numbers; test suite: 108 tests: all 108 pass when kubectl is installed; 107 pass and 1 skips when it is not):*
 
 | Scenario | Ops | Throughput | p50 Latency | p95 Latency | p99 Latency |
 |:---|:---:|:---:|:---:|:---:|:---:|
@@ -51,6 +51,8 @@ The Docker image, Kubernetes manifests and the real `claude -p` path were not ru
 | **4. GET /search (FTS5 BM25 Ranking)** | 200 | 550.9 ops/s | 7.04 ms | 8.43 ms | 9.44 ms |
 | **5. Mixed Load (12 workers, 1/3 writes)** | 240 | 498.3 ops/s | 23.75 ms | 26.62 ms | 27.80 ms |
 | **6. GET /feed (16 Concurrent Workers)** | 320 | 487.4 ops/s | 31.14 ms | 36.08 ms | 55.59 ms |
+
+*Single runs on a developer workstation; throughput and latency vary noticeably between runs (the same machine produced 271.9 and 498.3 ops/s for the mixed-load scenario on two runs), so treat these as indicative, not precise.*
 
 ---
 

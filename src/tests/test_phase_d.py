@@ -42,7 +42,10 @@ def test_docs_test_count_no_drift():
 
     passed_count = actual_count - 1
     skipped_count = 1
-    expected_phrase = f"{actual_count} tests: {passed_count} passed, {skipped_count} skipped when kubectl is absent"
+    expected_phrase = (
+        f"{actual_count} tests: all {actual_count} pass when kubectl is installed; "
+        f"{passed_count} pass and {skipped_count} skips when it is not"
+    )
     expected_platform = "Windows 11 (build 26300) / Python 3.10.6"
 
     readme_content = README_PATH.read_text(encoding="utf-8")
@@ -51,38 +54,58 @@ def test_docs_test_count_no_drift():
 
     doc_files = [("README.md", readme_content), ("SUMMARY.md", summary_content), ("PITCH_SCRIPT.md", pitch_content)]
 
-    # 1. Zero tolerance for '0 skipped' and 'Windows-10-10.0' in documentation files
+    # 1. Zero tolerance for legacy/prohibited strings
+    old_phrase = "107 passed, 1 skipped when kubectl is absent"
     for name, content in doc_files:
-        assert "0 skipped" not in content, f"{name} contains prohibited phrase '0 skipped'"
         assert "Windows-10-10.0" not in content, f"{name} contains prohibited legacy platform string 'Windows-10-10.0'"
+        assert old_phrase not in content, f"{name} contains obsolete phrase '{old_phrase}'"
 
+    # '0 skipped' check: allowed only as part of '0 skipped (kubectl present on that machine)' in README
+    for name, content in [("SUMMARY.md", summary_content), ("PITCH_SCRIPT.md", pitch_content)]:
+        assert "0 skipped" not in content, f"{name} contains prohibited phrase '0 skipped'"
+
+    readme_clean = readme_content.replace("0 skipped (kubectl present on that machine)", "")
+    assert "0 skipped" not in readme_clean, "README.md contains prohibited phrase '0 skipped' outside allowed verification note"
+
+    # 2. Check test-count phrase and platform string in README and SUMMARY
     for name, content in [("README.md", readme_content), ("SUMMARY.md", summary_content)]:
         assert expected_phrase in content, f"{name} does not match test-count phrase '{expected_phrase}'"
         assert expected_platform in content, f"{name} does not match platform string '{expected_platform}'"
 
+    # 3. Check README badge URL and alt text
+    expected_badge_alt = f"Tests: {expected_phrase}"
+    expected_badge_url = f"https://img.shields.io/badge/tests-{actual_count}%20collected-brightgreen.svg"
+    assert f"![{expected_badge_alt}]({expected_badge_url})" in readme_content
+
+    # 4. Check README quickstart comment
+    assert f"# 3. Run Test Suite: {expected_phrase}" in readme_content
+
+    # 5. Check README layout comment
+    assert f"# Automated test suite: {expected_phrase}" in readme_content
+
+    # 6. Check README disclosure blockquote line
+    expected_disclosure = (
+        f"The project runs and the test suite passes ({expected_phrase}; run on Windows 11 (build 26300) / Python 3.10.6), "
+        "and the complete live demonstration runs with zero external dependencies, zero API keys, and no Claude CLI."
+    )
+    assert expected_disclosure in readme_content
+
+    # 7. Check PITCH_SCRIPT Minute 5 phrasing
     expected_pitch_phrase = (
         f"**Code Quality**: {actual_count} automated tests covering stores, API integration, queue flushing, "
-        "thread safety, guard rules and deployment manifests. All pass; one skips if kubectl isn't installed. "
+        "thread safety, guard rules and deployment manifests. All pass when kubectl is installed; one skips when it isn't. "
         "The suite runs in about 15 seconds on this machine."
     )
     assert expected_pitch_phrase in pitch_content, f"PITCH_SCRIPT.md does not match expected phrase: {expected_pitch_phrase}"
 
-    # 2. Check README badge alt text and shield numbers
-    assert f"![Tests: {expected_phrase}]" in readme_content
-    badge_match = re.search(r"tests-(\d+)%20passed,%20(\d+)%20skipped", readme_content)
-    assert badge_match is not None, "README.md missing test count badge with passed and skipped counts"
-    assert int(badge_match.group(1)) == passed_count
-    assert int(badge_match.group(2)) == skipped_count
+    # 8. Check absence of 'B1:' through 'B10:' prefixes in README verification table
+    for i in range(1, 11):
+        assert f"B{i}:" not in readme_content, f"README.md still contains prefix 'B{i}:'"
 
-    # 3. Check README quickstart comment
-    assert f"# 3. Run Test Suite: {expected_phrase}" in readme_content
-
-    # 4. Check README layout comment
-    assert f"# Automated test suite: {expected_phrase}" in readme_content
-
-    # 5. Check README disclosure line (exact phrasing, no nested parentheses)
-    expected_disclosure = f"({expected_phrase}; run on Windows 11 / Python 3.10.6)"
-    assert expected_disclosure in readme_content
-    # Confirm no nested parentheses like ((108 tests...))
-    assert f"(({expected_phrase}" not in readme_content
-    assert f"({expected_phrase})" not in readme_content
+    # 9. Check presence of benchmark caveat line in README and SUMMARY
+    caveat_line = (
+        "*Single runs on a developer workstation; throughput and latency vary noticeably between runs "
+        "(the same machine produced 271.9 and 498.3 ops/s for the mixed-load scenario on two runs), so treat these as indicative, not precise.*"
+    )
+    assert caveat_line in readme_content, "README.md missing benchmark caveat line"
+    assert caveat_line in summary_content, "SUMMARY.md missing benchmark caveat line"
