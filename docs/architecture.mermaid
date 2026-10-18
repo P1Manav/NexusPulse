@@ -36,15 +36,15 @@ graph TB
         PostQueue --> BatchWriter
     end
 
-    subgraph StorageLayer["Pluggable Storage Layer (Store ABC)"]
+    subgraph StorageLayer["Storage Layer (Store ABC)"]
         StoreABC["board.store.base: Store"]
         SQLiteStore["SQLiteStore (Single-Replica Storage)<br/>- WAL Journal Mode<br/>- FTS5 Ranked BM25 Search<br/>- Keyset (Cursor) Pagination<br/>- JSON Columns for Tags/Meta"]
-        PostgresStore["Future Backend (Interface Extension)<br/>- Store ABC defines contract for future stores"]
+        FutureStore["Not implemented — Store interface only"]
         
         BatchWriter --> StoreABC
         API -->|"GET /feed, /search"| StoreABC
         StoreABC --> SQLiteStore
-        StoreABC -.-> PostgresStore
+        StoreABC -.-> FutureStore
     end
 
     classDef primary fill:#1E2B42,stroke:#6366F1,stroke-width:2px,color:#FFF;

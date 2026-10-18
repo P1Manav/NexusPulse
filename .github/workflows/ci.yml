@@ -30,7 +30,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Pytest Suite (44+ tests)
+      - name: Run pytest suite
         run: |
           python -m pytest src/tests -q
 

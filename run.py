@@ -1,7 +1,7 @@
 """
 run.py — Helper that runs run.yaml locally.
 
-Emulates the exact behavior of the AIntropy Grader Bot:
+Executes all stages of run.yaml in order:
   1. Reads run.yaml from repo root
   2. Runs setup_commands (pip install)
   3. Runs run_commands (python src/main.py demo)
@@ -93,7 +93,7 @@ def main() -> int:
         return 1
 
     print("=" * 72)
-    print("  AIntropy Grader Bot Simulator -- Running run.yaml")
+    print("  Local Helper -- Running run.yaml")
     print("=" * 72)
 
     config = parse_run_yaml(RUN_YAML)

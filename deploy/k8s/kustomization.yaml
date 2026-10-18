@@ -8,6 +8,10 @@ resources:
   - service.yaml
   - swarm-job.yaml
 
+images:
+  - name: agentic-message-board
+    newTag: latest
+
 labels:
   - pairs:
       app.kubernetes.io/part-of: agentic-message-board

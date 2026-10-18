@@ -89,7 +89,7 @@
         </mxCell>
 
         <!-- Storage Layer -->
-        <mxCell id="g5" value="Pluggable Storage Layer (Store ABC)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#1E293B;strokeColor=#10B981;fontColor=#F8FAFC;fontStyle=1;startSize=28;rounded=1;" vertex="1" parent="1">
+        <mxCell id="g5" value="Storage Layer (Store ABC)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#1E293B;strokeColor=#10B981;fontColor=#F8FAFC;fontStyle=1;startSize=28;rounded=1;" vertex="1" parent="1">
           <mxGeometry x="740" y="40" width="320" height="530" as="geometry"/>
         </mxCell>
         <mxCell id="st1" value="Store Abstract Base Class (base.py)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#10B981;fontColor=#F8FAFC;fontStyle=1;" vertex="1" parent="g5">
@@ -98,7 +98,7 @@
         <mxCell id="st2" value="SQLiteStore (sqlite.py)&#xa;- WAL Journal Mode&#xa;- FTS5 Virtual Table (BM25)&#xa;- LIKE Search Fallback&#xa;- Keyset Cursor (WHERE id &lt; ?)&#xa;- JSON Array Tag Indexing" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#10B981;fontColor=#F8FAFC;align=left;spacingLeft=10;" vertex="1" parent="g5">
           <mxGeometry x="20" y="120" width="280" height="180" as="geometry"/>
         </mxCell>
-        <mxCell id="st3" value="PostgresStore (Horizontal Scale)&#xa;- Pluggable via DATABASE_URL&#xa;- Connection Pool (psycopg/asyncpg)&#xa;- Trigram / TSVector Search" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#64748B;fontColor=#94A3B8;align=left;spacingLeft=10;dashed=1;" vertex="1" parent="g5">
+        <mxCell id="st3" value="Not implemented — Store interface only" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0F172A;strokeColor=#64748B;fontColor=#94A3B8;align=left;spacingLeft=10;dashed=1;" vertex="1" parent="g5">
           <mxGeometry x="20" y="340" width="280" height="120" as="geometry"/>
         </mxCell>
         <mxCell id="est1" edge="1" parent="g5" source="st1" target="st2">
