@@ -7,7 +7,33 @@ to clients (no guessing / manipulation).
 from __future__ import annotations
 
 import base64
+import datetime as dt
 import re
+
+
+def normalize_iso_timestamp(v: str | None) -> str | None:
+    """Parse ISO-8601 timestamp string (Z, offsets, date-only, naive=UTC), convert to UTC ISO-8601."""
+    if v is None:
+        return None
+    raw = v.strip()
+    if not raw:
+        return None
+    if re.search(r"\s\d{2}:\d{2}$", raw):
+        raw = re.sub(r"\s(\d{2}:\d{2})$", r"+\1", raw)
+    raw = raw.replace("Z", "+00:00")
+    try:
+        if len(raw) == 10 and raw.count("-") == 2:
+            d = dt.date.fromisoformat(raw)
+            parsed = dt.datetime(d.year, d.month, d.day, tzinfo=dt.timezone.utc)
+        else:
+            parsed = dt.datetime.fromisoformat(raw)
+            if parsed.tzinfo is None:
+                parsed = parsed.replace(tzinfo=dt.timezone.utc)
+            else:
+                parsed = parsed.astimezone(dt.timezone.utc)
+        return parsed.isoformat()
+    except Exception as exc:
+        raise ValueError(f"Invalid ISO-8601 timestamp: {exc}") from exc
 
 
 class InvalidCursorError(ValueError):

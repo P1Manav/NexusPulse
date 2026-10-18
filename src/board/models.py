@@ -136,15 +136,11 @@ class FeedQuery(BaseModel):
     @classmethod
     def validate_since(cls, v: str | None) -> str | None:
         if v is not None and v.strip():
-            raw = v.strip()
-            import re
-            if re.search(r"\s\d{2}:\d{2}$", raw):
-                raw = re.sub(r"\s(\d{2}:\d{2})$", r"+\1", raw)
+            from board.feed import normalize_iso_timestamp
             try:
-                dt.datetime.fromisoformat(raw.replace("Z", "+00:00"))
+                return normalize_iso_timestamp(v)
             except Exception as exc:
                 raise ValueError(f"Invalid 'since' timestamp, must be ISO-8601: {exc}")
-            return raw
         return v
 
 

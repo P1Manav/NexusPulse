@@ -32,8 +32,12 @@ class MetricsCollector:
         self._posts_accepted = 0
         self._sync_posts_written = 0
         self._precheck_duplicates = 0
+        self._post_items_failed = 0
         self._http_requests: dict[tuple[str, str, str], int] = {}
-        self._http_durations: dict[tuple[str, str], list[float]] = {}
+        # O(1) memory: fixed histogram bucket counters, sum, and count per (method, handler)
+        self._http_duration_buckets: dict[tuple[str, str], dict[float, int]] = {}
+        self._http_duration_sum: dict[tuple[str, str], float] = {}
+        self._http_duration_count: dict[tuple[str, str], int] = {}
 
     def inc_posts_accepted(self, count: int = 1) -> None:
         with self._lock:
@@ -47,6 +51,10 @@ class MetricsCollector:
         with self._lock:
             self._precheck_duplicates += count
 
+    def inc_post_items_failed(self, count: int = 1) -> None:
+        with self._lock:
+            self._post_items_failed += count
+
     def record_http_request(
         self, method: str, handler: str, status: int, duration_seconds: float
     ) -> None:
@@ -54,23 +62,34 @@ class MetricsCollector:
         h_key = (method.upper(), handler)
         with self._lock:
             self._http_requests[key] = self._http_requests.get(key, 0) + 1
-            if h_key not in self._http_durations:
-                self._http_durations[h_key] = []
-            self._http_durations[h_key].append(duration_seconds)
+            if h_key not in self._http_duration_buckets:
+                self._http_duration_buckets[h_key] = {le: 0 for le in HISTOGRAM_BUCKETS}
+                self._http_duration_sum[h_key] = 0.0
+                self._http_duration_count[h_key] = 0
+
+            self._http_duration_sum[h_key] += duration_seconds
+            self._http_duration_count[h_key] += 1
+            for le in HISTOGRAM_BUCKETS:
+                if duration_seconds <= le:
+                    self._http_duration_buckets[h_key][le] += 1
 
     def generate_prometheus_text(self) -> str:
         queue = self._queue_getter() if self._queue_getter else None
         q_written = queue.total_written if queue else 0
         q_duplicates = queue.total_duplicates if queue else 0
         q_failed = queue.total_failed_batches if queue else 0
+        q_failed_items = getattr(queue, "total_failed_items", 0) if queue else 0
         q_depth = queue.pending if queue else 0
 
         with self._lock:
             accepted = self._posts_accepted
             written = q_written + self._sync_posts_written
             duplicates = q_duplicates + self._precheck_duplicates
+            items_failed = q_failed_items + self._post_items_failed
             reqs = dict(self._http_requests)
-            durations = {k: list(v) for k, v in self._http_durations.items()}
+            d_counts = dict(self._http_duration_count)
+            d_sums = dict(self._http_duration_sum)
+            d_buckets = {k: dict(v) for k, v in self._http_duration_buckets.items()}
 
         lines: list[str] = []
 
@@ -96,6 +115,11 @@ class MetricsCollector:
         lines.append("# TYPE post_batches_failed_total counter")
         lines.append(f"post_batches_failed_total {q_failed}")
 
+        # post_items_failed_total
+        lines.append("# HELP post_items_failed_total Total individual post items that failed in batches.")
+        lines.append("# TYPE post_items_failed_total counter")
+        lines.append(f"post_items_failed_total {items_failed}")
+
         # queue_depth
         lines.append("# HELP queue_depth Current number of posts pending in the write queue.")
         lines.append("# TYPE queue_depth gauge")
@@ -110,11 +134,12 @@ class MetricsCollector:
         # http_request_duration_seconds
         lines.append("# HELP http_request_duration_seconds HTTP request latency in seconds.")
         lines.append("# TYPE http_request_duration_seconds histogram")
-        for (m, h), samples in sorted(durations.items()):
-            total_sum = sum(samples)
-            total_count = len(samples)
+        for (m, h), count in sorted(d_counts.items()):
+            total_sum = d_sums[(m, h)]
+            total_count = count
+            b_map = d_buckets[(m, h)]
             for le in HISTOGRAM_BUCKETS:
-                cumulative = sum(1 for x in samples if x <= le)
+                cumulative = b_map.get(le, 0)
                 lines.append(
                     f'http_request_duration_seconds_bucket{{method="{m}",handler="{h}",le="{le}"}} {cumulative}'
                 )

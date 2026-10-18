@@ -126,29 +126,45 @@ def execute_work_item(
             fallback_text=fallback_text,
         )
     except Exception as exc:
-        logger.error("Execution failed for work item '%s' (%s): %s", item.title, slug, exc)
+        logger.warning("Execution failed for work item '%s' (%s): %s", item.title, slug, exc)
         llm_resp = LLMResponse(
-            text=f"Task execution failed: {item.task} ({exc})",
+            text=f"{fallback_text} [LLM unavailable: using fallback]",
             source="mock-fallback",
             failed=True,
+            error_category="other",
         )
 
     # Determine post kind and source
     kind = PostKind.FAILED if (llm_resp.failed or item.kind == PostKind.FAILED) else item.kind
     combined_tags = list(set(spec.tags + item.tags))
 
+    # Truncate post text to 5000 characters (ending with "…")
+    post_text = llm_resp.text
+    if len(post_text) > 5000:
+        post_text = post_text[:4999] + "…"
+
+    metadata = {
+        **item.metadata,
+        "work_item_title": item.title,
+        "llm_source": llm_resp.source,
+    }
+    if llm_resp.failed:
+        cat = getattr(llm_resp, "error_category", None) or "other"
+        if cat not in {"timeout", "nonzero_exit", "empty_output", "missing_binary", "other"}:
+            cat = "other"
+        metadata["llm_error"] = cat
+
+    # Failed posts must not be deduplicated forever; omit dedupe_key so next run retries
+    post_dedupe_key = None if llm_resp.failed else dedupe_key
+
     post_payload = {
         "agent_slug": slug,
-        "text": llm_resp.text,
+        "text": post_text,
         "kind": kind.value,
         "tags": combined_tags,
-        "metadata": {
-            **item.metadata,
-            "work_item_title": item.title,
-            "llm_source": llm_resp.source,
-        },
+        "metadata": metadata,
         "source": llm_resp.source,
-        "dedupe_key": dedupe_key,
+        "dedupe_key": post_dedupe_key,
     }
 
     headers = {}

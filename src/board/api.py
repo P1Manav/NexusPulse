@@ -147,9 +147,12 @@ def create_app(
         method = request.method
         status = response.status_code
 
+        route = request.scope.get("route")
+        handler = getattr(route, "path", None) or "unmatched"
+
         metrics = getattr(app.state, "metrics", None)
         if metrics:
-            metrics.record_http_request(method, path, status, duration)
+            metrics.record_http_request(method, handler, status, duration)
 
         now_iso = dt.datetime.now(dt.timezone.utc).isoformat()
         logger.info(

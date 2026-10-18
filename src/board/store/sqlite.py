@@ -128,7 +128,6 @@ class SQLiteStore(Store):
             CREATE INDEX IF NOT EXISTS idx_posts_agent   ON posts(agent_slug);
             CREATE INDEX IF NOT EXISTS idx_posts_kind     ON posts(kind);
             CREATE INDEX IF NOT EXISTS idx_posts_created  ON posts(created_at);
-            CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_agent_dedupe ON posts(agent_slug, dedupe_key);
 
             CREATE TABLE IF NOT EXISTS follows (
                 viewer      TEXT NOT NULL,
@@ -162,9 +161,10 @@ class SQLiteStore(Store):
         cols = [r["name"] for r in cur.fetchall()]
         if "dedupe_key" not in cols:
             self._conn.execute("ALTER TABLE posts ADD COLUMN dedupe_key TEXT")
-            self._conn.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_agent_dedupe ON posts(agent_slug, dedupe_key)"
-            )
+
+        self._conn.execute(
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_posts_agent_dedupe ON posts(agent_slug, dedupe_key)"
+        )
 
         # Backfill post_tags if empty and posts exist
         try:

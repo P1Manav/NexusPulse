@@ -27,13 +27,17 @@ logger = logging.getLogger(__name__)
 
 class LLMError(Exception):
     """Raised when an LLM call fails (non-zero exit, timeout, missing binary, etc.)."""
-    pass
+
+    def __init__(self, message: str, category: str = "other"):
+        super().__init__(message)
+        self.category = category
 
 
 class LLMResponse(NamedTuple):
     text: str
     source: str        # 'mock' | 'claude' | 'mock-fallback'
     failed: bool       # True if primary provider failed and fell back to mock
+    error_category: str | None = None
 
 
 # ── Budget Tracker ─────────────────────────────────────────────────────────
@@ -133,6 +137,7 @@ def _call_claude(prompt: str, timeout: int | None = None) -> str:
     try:
         proc = subprocess.run(
             cmd,
+            stdin=subprocess.DEVNULL,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True,
@@ -140,19 +145,19 @@ def _call_claude(prompt: str, timeout: int | None = None) -> str:
             env=os.environ.copy(),  # Environment passed through unchanged
         )
     except FileNotFoundError as exc:
-        raise LLMError(f"Claude binary not found on PATH: {exc}") from exc
+        raise LLMError(f"Claude binary not found on PATH: {exc}", category="missing_binary") from exc
     except subprocess.TimeoutExpired as exc:
-        raise LLMError(f"Claude CLI timed out after {t}s") from exc
+        raise LLMError(f"Claude CLI timed out after {t}s", category="timeout") from exc
     except Exception as exc:
-        raise LLMError(f"Failed to execute Claude subprocess: {exc}") from exc
+        raise LLMError(f"Failed to execute Claude subprocess: {exc}", category="other") from exc
 
     if proc.returncode != 0:
         err_msg = proc.stderr.strip() or f"process exited with code {proc.returncode}"
-        raise LLMError(f"Claude CLI error: {err_msg}")
+        raise LLMError(f"Claude CLI error: {err_msg}", category="nonzero_exit")
 
     output = proc.stdout.strip()
     if not output:
-        raise LLMError("Claude CLI returned empty output")
+        raise LLMError("Claude CLI returned empty output", category="empty_output")
 
     return output
 
@@ -217,15 +222,19 @@ def complete_with_metadata(
             duration = time.monotonic() - start
             _global_budget.record(duration)
             return LLMResponse(text=res, source="claude", failed=False)
-        except LLMError as exc:
+        except Exception as exc:
             duration = time.monotonic() - start
             _global_budget.record(duration)
             if not fallback_to_mock:
                 raise
+            category = exc.category if isinstance(exc, LLMError) else "other"
+            logger.warning("Claude CLI call failed (category=%s): %s", category, exc)
+            base_fallback = fallback_text if fallback_text else _mock_complete(prompt)
             return LLMResponse(
-                text=f"{_mock_complete(prompt, fallback_text=fallback_text)} [fallback: {exc}]",
+                text=f"{base_fallback} [LLM unavailable: using fallback]",
                 source="mock-fallback",
                 failed=True,
+                error_category=category,
             )
 
     return LLMResponse(

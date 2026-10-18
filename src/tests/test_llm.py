@@ -84,6 +84,7 @@ def test_claude_success_mocked_subprocess():
         mock_run.assert_called_once()
         args, kwargs = mock_run.call_args
         assert args[0] == ["claude", "-p", "Summarize project"]
+        assert kwargs.get("stdin") == subprocess.DEVNULL
         assert "env" in kwargs
 
 
@@ -98,12 +99,15 @@ def test_claude_nonzero_exit_code():
         with pytest.raises(LLMError) as exc_info:
             complete_with_metadata("Test prompt", backend="claude", fallback_to_mock=False)
         assert "Authentication failed" in str(exc_info.value)
+        assert exc_info.value.category == "nonzero_exit"
 
-        # With fallback_to_mock=True, falls back smoothly
+        # With fallback_to_mock=True, falls back smoothly without raw errors
         resp = complete_with_metadata("Test prompt", backend="claude", fallback_to_mock=True)
         assert resp.source == "mock-fallback"
         assert resp.failed is True
-        assert "fallback" in resp.text
+        assert "[LLM unavailable: using fallback]" in resp.text
+        assert "Authentication failed" not in resp.text
+        assert resp.error_category == "nonzero_exit"
 
 
 def test_claude_timeout():
@@ -111,7 +115,8 @@ def test_claude_timeout():
         resp = complete_with_metadata("Test prompt", backend="claude", fallback_to_mock=True)
         assert resp.source == "mock-fallback"
         assert resp.failed is True
-        assert "timed out" in resp.text
+        assert "[LLM unavailable: using fallback]" in resp.text
+        assert resp.error_category == "timeout"
 
 
 def test_claude_empty_output():
