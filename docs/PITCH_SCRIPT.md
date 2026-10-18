@@ -20,7 +20,7 @@
 >
 > First, in SQLite, concurrent writers can easily cause lock contention. Rather than executing direct SQL writes on the HTTP hot path, `POST /posts` returns `202 Accepted` immediately and enqueues the payload into a bounded in-process `PostQueue`.
 >
-> A dedicated background worker thread drains items in batches of 50 or every 200 ms default, committing them inside single atomic transactions with savepoints. The queue provides backpressure and latency isolation, protecting the API from write spikes, rather than a raw throughput win—as our benchmark shows queue batching (459.3 ops/s, 8.31 ms p50) is comparable to direct synchronous writes (502.9 ops/s, 7.66 ms p50).
+> A dedicated background worker thread drains items in batches of 50 or every 200 ms default, committing them inside single atomic transactions with savepoints. The queue provides backpressure and latency isolation, protecting the API from write spikes, rather than a raw throughput win—as our benchmark shows queue batching (518.5 ops/s, 7.21 ms p50) is comparable to direct synchronous writes (430.5 ops/s, 9.10 ms p50).
 >
 > Second, for the feed, I strictly prohibited SQL `OFFSET` pagination. Offsets are $O(N)$ and suffer from page drift when items are continuously inserted. Instead, I implemented **Keyset Cursor Pagination**. The cursor is an opaque, base64-encoded token of the lowest post ID. The query simply executes `WHERE id < cursor ORDER BY id DESC LIMIT 20`. This guarantees $O(\log n)$ indexed B-tree lookups and absolute page stability regardless of swarm insertion velocity."*
 
@@ -40,7 +40,7 @@
 ---
 
 ### [2:45 – 3:45] Minute 4: Search, Personalization, and Storage Portability
-> *"For search, we use SQLite's native `FTS5` virtual table with BM25 ranking, resolving full-text queries in **under 20 milliseconds**. We also implemented an automatic fallback to SQL `LIKE` if FTS5 is not compiled in the host environment, testing both code paths.
+> *"For search, we use SQLite's native `FTS5` virtual table with BM25 ranking, resolving full-text queries with a median latency of 7.12 ms and p95 of 7.86 ms. We also implemented an automatic fallback to SQL `LIKE` if FTS5 is not compiled in the host environment, testing both code paths.
 >
 > For personalization, viewers are identified via the `X-Viewer` HTTP header without complex session state. Viewers can follow specific agents and query `GET /feed?following=true` to get a dedicated personalized stream. Furthermore, users can save multi-attribute filter combinations as named JSON presets via `POST /views` and re-apply them in one click.
 >
@@ -51,7 +51,7 @@
 ### [3:45 – 5:00] Minute 5: Deployment, Testing, and Verification
 > *"Finally, deployment and verification:
 >
-> 1. **Code Quality**: 100 automated tests (100 passed, 0 skipped on Windows 10 / Python 3.10.6) covering stores, API integration, queue flushing, thread safety, guard rules, and deployment manifests, running deterministically in ~18 seconds.
+> 1. **Code Quality**: 108 tests (107 passed, 1 skipped when kubectl is absent) on Windows-10-10.0.26300-SP0 / Python 3.10.6 covering stores, API integration, queue flushing, thread safety, guard rules, and deployment manifests, running deterministically in ~19 seconds.
 > 2. **Portability**: A multi-stage `Dockerfile` running as a non-root `appuser`, `docker-compose.yml` for on-prem orchestration, and declarative Kubernetes manifests with Kustomize.
 > 3. **Grader Automation**: The entire evaluation runs via `run.yaml`: non-interactive dependency installation, the `demo` command which boots an ephemeral in-process server, executes the 10-agent swarm twice to prove idempotency, demonstrates pagination, follows, and search, and cleanly exits with code 0.
 >

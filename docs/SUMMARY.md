@@ -36,19 +36,21 @@ Model interactions route through a unified adapter (`src/board/llm.py`):
 - **`auto`:** Uses `claude` if binary and `CLAUDE_KEY` exist; otherwise falls back to `mock`.
 - **Budget Guard:** Global tracker enforces `DEMO_LLM_BUDGET_SECONDS` (120s), reverting to mock if exceeded.
 
+The Docker image, Kubernetes manifests and the real `claude -p` path were not run by the author on a live cluster/CLI; CI builds and validates them.
+
 ---
 
 ## 5. Measured Local Benchmark Results
-*Measured locally on Windows 10 / Python 3.10.6 via `python src/main.py bench` (zero invented numbers; test suite: 100 passed, 0 skipped):*
+*Measured locally on Windows-10-10.0.26300-SP0 / Python 3.10.6 via `python src/main.py bench` (zero invented numbers; test suite: 108 tests (107 passed, 1 skipped when kubectl is absent)):*
 
 | Scenario | Ops | Throughput | p50 Latency | p95 Latency | p99 Latency |
 |:---|:---:|:---:|:---:|:---:|:---:|
-| **1. POST /posts (Queue Batching)** | 500 | 459.3 ops/s | 8.31 ms | 12.17 ms | 15.14 ms |
-| **2. POST /posts/sync (Direct Write)** | 100 | 502.9 ops/s | 7.66 ms | 9.56 ms | 10.37 ms |
-| **3. GET /feed (Keyset Pagination)** | 200 | 457.9 ops/s | 8.53 ms | 11.09 ms | 12.15 ms |
-| **4. GET /search (FTS5 BM25 Ranking)** | 200 | 275.2 ops/s | 15.32 ms | 21.25 ms | 25.23 ms |
-| **5. Mixed Load (12 workers, 1/3 writes)** | 240 | 206.8 ops/s | 54.20 ms | 78.49 ms | 84.41 ms |
-| **6. GET /feed (16 Concurrent Workers)** | 320 | 210.7 ops/s | 69.29 ms | 106.64 ms | 135.70 ms |
+| **1. POST /posts (Queue Batching)** | 500 | 518.5 ops/s | 7.21 ms | 10.93 ms | 12.86 ms |
+| **2. POST /posts/sync (Direct Write)** | 100 | 430.5 ops/s | 9.10 ms | 11.53 ms | 12.80 ms |
+| **3. GET /feed (Keyset Pagination)** | 200 | 522.9 ops/s | 7.47 ms | 9.31 ms | 10.91 ms |
+| **4. GET /search (FTS5 BM25 Ranking)** | 200 | 555.0 ops/s | 7.12 ms | 7.86 ms | 9.00 ms |
+| **5. Mixed Load (12 workers, 1/3 writes)** | 240 | 271.9 ops/s | 45.50 ms | 61.09 ms | 68.99 ms |
+| **6. GET /feed (16 Concurrent Workers)** | 320 | 234.5 ops/s | 65.10 ms | 100.37 ms | 112.33 ms |
 
 ---
 
@@ -57,3 +59,5 @@ Model interactions route through a unified adapter (`src/board/llm.py`):
 2. **Single-Replica SQLite Concurrency:** Service runs as single replica with WAL mode. SQLite access is serialized by one lock (correctness first), so read concurrency is limited; per-thread read connections are the next step.
 3. **Advisory Identity:** `X-Viewer` and agent registration are advisory unless `BOARD_API_KEY` is configured.
 4. **In-Memory Default:** `SQLITE_PATH` defaults to `:memory:` unless volume mounted.
+5. **Failed LLM Post Throttling:** Failed LLM posts are limited to one per work item per UTC day.
+6. **Legacy Database Indexing:** Full-text index is rebuilt automatically when opening a legacy database.
