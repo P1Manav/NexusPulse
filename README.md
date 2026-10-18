@@ -80,16 +80,16 @@ python src/main.py serve
 
 ## Measured Benchmark Results
 
-Measured locally on Windows 11 (build 26300) / Python 3.10.6 via `python src/main.py bench` (*real measurements, zero invented numbers; 108 tests: 107 passed, 1 skipped when kubectl is absent*):
+Measured locally on Windows 11 (build 26300) / Python 3.10.6 via `python src/main.py bench` on 2026-10-18 (*real measurements, zero invented numbers; 108 tests: 107 passed, 1 skipped when kubectl is absent*):
 
 | Scenario | Operations | Throughput | p50 Latency | p95 Latency | p99 Latency |
 |:---|:---:|:---:|:---:|:---:|:---:|
-| **1. POST /posts (Queue Batching)** | 500 posts | **518.5 ops/s** | 7.21 ms | 10.93 ms | 12.86 ms |
-| **2. POST /posts/sync (Direct Write)** | 100 posts | **430.5 ops/s** | 9.10 ms | 11.53 ms | 12.80 ms |
-| **3. GET /feed (Keyset Pagination)** | 200 reads | **522.9 ops/s** | 7.47 ms | 9.31 ms | 10.91 ms |
-| **4. GET /search (FTS5 BM25 Ranking)** | 200 queries | **555.0 ops/s** | 7.12 ms | 7.86 ms | 9.00 ms |
-| **5. Mixed Load (12 workers, 1/3 writes)** | 240 ops | **271.9 ops/s** | 45.50 ms | 61.09 ms | 68.99 ms |
-| **6. GET /feed (16 Concurrent Workers)** | 320 requests | **234.5 ops/s** | 65.10 ms | 100.37 ms | 112.33 ms |
+| **1. POST /posts (Queue Batching)** | 500 posts | **493.6 ops/s** | 7.45 ms | 11.78 ms | 16.83 ms |
+| **2. POST /posts/sync (Direct Write)** | 100 posts | **531.6 ops/s** | 7.29 ms | 8.87 ms | 9.83 ms |
+| **3. GET /feed (Keyset Pagination)** | 200 reads | **528.0 ops/s** | 7.44 ms | 8.82 ms | 9.70 ms |
+| **4. GET /search (FTS5 BM25 Ranking)** | 200 queries | **550.9 ops/s** | 7.04 ms | 8.43 ms | 9.44 ms |
+| **5. Mixed Load (12 workers, 1/3 writes)** | 240 ops | **498.3 ops/s** | 23.75 ms | 26.62 ms | 27.80 ms |
+| **6. GET /feed (16 Concurrent Workers)** | 320 requests | **487.4 ops/s** | 31.14 ms | 36.08 ms | 55.59 ms |
 
 To reproduce the benchmark at any time:
 ```bash
@@ -149,7 +149,7 @@ graph TB
 │   └── k8s/                     # Kubernetes manifests (Deployment, Service, ConfigMap, PVC)
 │       └── kustomization.yaml   # Kustomize manifest bundle (No Helm required)
 ├── docs/
-│   ├── SUMMARY.md               # 2-Page System Design Write-Up (<= 750 words)
+│   ├── SUMMARY.md               # 2-Page System Design Write-Up (about 2 pages)
 │   ├── PITCH_SCRIPT.md          # 5-minute technical interview script
 │   ├── architecture.mermaid     # Mermaid architecture diagram code
 │   └── architecture.drawio      # Standard Draw.io XML diagram file
@@ -342,3 +342,23 @@ kubectl apply -k deploy/k8s
 4. **In-Memory Default:** Default `SQLITE_PATH=:memory:` loses data on process exit unless a file path is provided.
 5. **Failed LLM Post Throttling & Retries:** Failed LLM posts are limited to one per work item per UTC day. A failing LLM backend is called again on every run; only the stored failed post is deduplicated (one per work item per UTC day). Only the LLM call is retried; the pre-check skips work items whose normal dedupe key already exists.
 6. **Legacy Database Indexing:** Full-text index is rebuilt automatically when opening a legacy database.
+
+---
+
+## Verification on the Author's Machine
+
+*Executed on Windows 11 (build 26300) / Python 3.10.6 on 2026-10-18:*
+
+| Check | Result | Evidence |
+|:---|:---:|:---|
+| **B1: Fresh clone + run.yaml** | **PASS** | `pip install`, `demo`, and `pytest` all exited 0 (108 passed, 17 warnings in 15.38s) on Python 3.10.6 in temp venv. |
+| **B2: Demo repeatability (20 runs)** | **PASS** | 20/20 runs exited 0 with 0 errors/tracebacks; all runs showed 20 new then 20 duplicate. |
+| **B3: Python version matrix** | **PASS** (3.10) / **NOT VERIFIED** (3.11, 3.12) | Python 3.10 passed all tests; Python 3.11 not installed; Python 3.12 binary missing from filesystem. |
+| **B4: Live server + README curls** | **PASS** | All 7 curl steps succeeded against live server; temp DB contained exactly 1 row for dedupe_key. |
+| **B5: Swarm CLI tests** | **PASS** | Swarm run 1 exited with code 0 (20 new), run 2 exited with code 0 (20 items duplicate-skipped), unused port failed with exit code 1. |
+| **B6: Docker verification** | **PASS** | Compose config valid, container demo exited 0, healthy in 6s, runs as non-root appuser, temp image/container cleaned up. |
+| **B7: Kubernetes verification** | **PASS** | Kustomize rendered Deployment (replicas=1, Recreate), Service, ConfigMap, PVC, and Job; cluster context not configured so dry-run skipped. |
+| **B8: Live Claude path** | **NOT VERIFIED** | Not verified on this machine: CLAUDE_KEY environment variable is not set. |
+| **B9: GitHub Actions status** | **PASS** | `gh run list` confirms run 39113128555 on main concluded success (duration 36s). |
+| **B10: Benchmark refresh** | **PASS** | `python src/main.py bench` executed on Windows 11 (build 26300) / Python 3.10.6; all 6 scenarios completed with 487-551 ops/s. |
+

@@ -55,8 +55,17 @@ def test_docs_test_count_no_drift():
     for name, content in doc_files:
         assert "0 skipped" not in content, f"{name} contains prohibited phrase '0 skipped'"
         assert "Windows-10-10.0" not in content, f"{name} contains prohibited legacy platform string 'Windows-10-10.0'"
+
+    for name, content in [("README.md", readme_content), ("SUMMARY.md", summary_content)]:
         assert expected_phrase in content, f"{name} does not match test-count phrase '{expected_phrase}'"
         assert expected_platform in content, f"{name} does not match platform string '{expected_platform}'"
+
+    expected_pitch_phrase = (
+        f"**Code Quality**: {actual_count} automated tests covering stores, API integration, queue flushing, "
+        "thread safety, guard rules and deployment manifests. All pass; one skips if kubectl isn't installed. "
+        "The suite runs in about 15 seconds on this machine."
+    )
+    assert expected_pitch_phrase in pitch_content, f"PITCH_SCRIPT.md does not match expected phrase: {expected_pitch_phrase}"
 
     # 2. Check README badge alt text and shield numbers
     assert f"![Tests: {expected_phrase}]" in readme_content

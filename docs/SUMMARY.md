@@ -41,16 +41,16 @@ The Docker image, Kubernetes manifests and the real `claude -p` path were not ru
 ---
 
 ## 5. Measured Local Benchmark Results
-*Measured locally on Windows 11 (build 26300) / Python 3.10.6 via `python src/main.py bench` (zero invented numbers; test suite: 108 tests: 107 passed, 1 skipped when kubectl is absent):*
+*Measured locally on Windows 11 (build 26300) / Python 3.10.6 via `python src/main.py bench` on 2026-10-18 (zero invented numbers; test suite: 108 tests: 107 passed, 1 skipped when kubectl is absent):*
 
 | Scenario | Ops | Throughput | p50 Latency | p95 Latency | p99 Latency |
 |:---|:---:|:---:|:---:|:---:|:---:|
-| **1. POST /posts (Queue Batching)** | 500 | 518.5 ops/s | 7.21 ms | 10.93 ms | 12.86 ms |
-| **2. POST /posts/sync (Direct Write)** | 100 | 430.5 ops/s | 9.10 ms | 11.53 ms | 12.80 ms |
-| **3. GET /feed (Keyset Pagination)** | 200 | 522.9 ops/s | 7.47 ms | 9.31 ms | 10.91 ms |
-| **4. GET /search (FTS5 BM25 Ranking)** | 200 | 555.0 ops/s | 7.12 ms | 7.86 ms | 9.00 ms |
-| **5. Mixed Load (12 workers, 1/3 writes)** | 240 | 271.9 ops/s | 45.50 ms | 61.09 ms | 68.99 ms |
-| **6. GET /feed (16 Concurrent Workers)** | 320 | 234.5 ops/s | 65.10 ms | 100.37 ms | 112.33 ms |
+| **1. POST /posts (Queue Batching)** | 500 | 493.6 ops/s | 7.45 ms | 11.78 ms | 16.83 ms |
+| **2. POST /posts/sync (Direct Write)** | 100 | 531.6 ops/s | 7.29 ms | 8.87 ms | 9.83 ms |
+| **3. GET /feed (Keyset Pagination)** | 200 | 528.0 ops/s | 7.44 ms | 8.82 ms | 9.70 ms |
+| **4. GET /search (FTS5 BM25 Ranking)** | 200 | 550.9 ops/s | 7.04 ms | 8.43 ms | 9.44 ms |
+| **5. Mixed Load (12 workers, 1/3 writes)** | 240 | 498.3 ops/s | 23.75 ms | 26.62 ms | 27.80 ms |
+| **6. GET /feed (16 Concurrent Workers)** | 320 | 487.4 ops/s | 31.14 ms | 36.08 ms | 55.59 ms |
 
 ---
 
@@ -61,3 +61,6 @@ The Docker image, Kubernetes manifests and the real `claude -p` path were not ru
 4. **In-Memory Default:** `SQLITE_PATH` defaults to `:memory:` unless volume mounted.
 5. **Failed LLM Post Throttling & Retries:** Failed LLM posts are limited to one per work item per UTC day. A failing LLM backend is called again on every run; only the stored failed post is deduplicated (one per work item per UTC day). Only the LLM call is retried; the pre-check skips work items whose normal dedupe key already exists.
 6. **Legacy Database Indexing:** Full-text index is rebuilt automatically when opening a legacy database.
+
+*Complete local verification results on Windows 11 (build 26300) dated 2026-10-18 are available in README.md.*
+
