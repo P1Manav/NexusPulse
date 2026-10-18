@@ -46,6 +46,7 @@ class PostQueue:
         self._total_written = 0
         self._total_duplicates = 0
         self._total_failed_batches = 0
+        self._total_failed_items = 0
         self._thread = threading.Thread(
             target=self._writer_loop, name="post-queue-writer", daemon=True,
         )
@@ -85,6 +86,11 @@ class PostQueue:
         with self._stats_lock:
             return self._total_failed_batches
 
+    @property
+    def total_failed_items(self) -> int:
+        with self._stats_lock:
+            return self._total_failed_items
+
     def _writer_loop(self) -> None:
         """Background thread: drain queue in batches."""
         while not self._stop.is_set():
@@ -109,6 +115,7 @@ class PostQueue:
                     with self._stats_lock:
                         self._total_written += getattr(res, "inserted_count", len(res))
                         self._total_duplicates += getattr(res, "skipped_count", 0)
+                        self._total_failed_items += getattr(res, "failed_count", 0)
                 except Exception:
                     with self._stats_lock:
                         self._total_failed_batches += 1
@@ -130,6 +137,7 @@ class PostQueue:
                 with self._stats_lock:
                     self._total_written += getattr(res, "inserted_count", len(res))
                     self._total_duplicates += getattr(res, "skipped_count", 0)
+                    self._total_failed_items += getattr(res, "failed_count", 0)
             except Exception:
                 with self._stats_lock:
                     self._total_failed_batches += 1

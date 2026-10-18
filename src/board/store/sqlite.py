@@ -20,7 +20,7 @@ import threading
 import uuid
 from typing import Any
 
-from board.feed import decode_cursor, encode_cursor, slugify
+from board.feed import decode_cursor, encode_cursor, escape_like, normalize_iso_timestamp, slugify
 from board.models import (
     Agent,
     AgentRegister,
@@ -45,12 +45,14 @@ def _now_iso() -> str:
 class BatchResult(list):
     """Result of create_posts_batch containing inserted posts and count metadata."""
 
-    def __init__(self, items: list[Post], inserted: int = 0, skipped: int = 0):
+    def __init__(self, items: list[Post], inserted: int = 0, skipped: int = 0, failed: int = 0):
         super().__init__(items)
         self.inserted = inserted
         self.skipped = skipped
+        self.failed = failed
         self.inserted_count = inserted
         self.skipped_count = skipped
+        self.failed_count = failed
 
 
 class SQLiteStore(Store):
@@ -347,11 +349,12 @@ class SQLiteStore(Store):
 
     def create_posts_batch(self, items: list[PostCreate]) -> BatchResult:
         if not items:
-            return BatchResult([], inserted=0, skipped=0)
+            return BatchResult([], inserted=0, skipped=0, failed=0)
         now = _now_iso()
         results: list[Post] = []
         inserted_count = 0
         skipped_count = 0
+        failed_count = 0
 
         with self._lock:
             assert self._conn is not None
@@ -388,16 +391,17 @@ class SQLiteStore(Store):
                     except Exception as item_exc:
                         self._conn.execute(f"ROLLBACK TO SAVEPOINT {sp_name}")
                         self._conn.execute(f"RELEASE SAVEPOINT {sp_name}")
+                        failed_count += 1
                         logger.error(
                             "Failed to write item %d in batch for agent '%s': %s",
-                            idx, data.agent_slug, item_exc, exc_info=True,
+                            idx, data.agent_slug, item_exc,
                         )
                 self._conn.commit()
             except Exception:
                 self._conn.rollback()
                 raise
 
-        return BatchResult(results, inserted=inserted_count, skipped=skipped_count)
+        return BatchResult(results, inserted=inserted_count, skipped=skipped_count, failed=failed_count)
 
     # ── Feed ──────────────────────────────────────────────────────────────
 
@@ -406,8 +410,7 @@ class SQLiteStore(Store):
             assert self._conn is not None
             if query is None:
                 query = FeedQuery()
-            conditions: list[str] = []
-            params: list[Any] = []
+            clause_pairs: list[tuple[str, list[Any]]] = []
 
             # Followed agents filter
             if query.following and query.viewer:
@@ -418,23 +421,19 @@ class SQLiteStore(Store):
                 if not followed_slugs:
                     return FeedResponse(posts=[], next_cursor=None)
                 placeholders = ",".join("?" for _ in followed_slugs)
-                conditions.append(f"agent_slug IN ({placeholders})")
-                params.extend(followed_slugs)
+                clause_pairs.append((f"agent_slug IN ({placeholders})", list(followed_slugs)))
 
             # Filters
             if query.agent:
-                conditions.append("agent_slug = ?")
-                params.append(query.agent)
+                clause_pairs.append(("agent_slug = ?", [query.agent]))
             if query.tag:
-                conditions.append("id IN (SELECT post_id FROM post_tags WHERE tag = ?)")
-                params.append(query.tag.strip().lower())
+                clause_pairs.append(("id IN (SELECT post_id FROM post_tags WHERE tag = ?)", [query.tag.strip().lower()]))
             if query.kind:
                 kind_val = query.kind.value if hasattr(query.kind, "value") else str(query.kind)
-                conditions.append("kind = ?")
-                params.append(kind_val)
+                clause_pairs.append(("kind = ?", [kind_val]))
             if query.since:
-                conditions.append("created_at >= ?")
-                params.append(query.since)
+                norm_since = normalize_iso_timestamp(query.since) or query.since
+                clause_pairs.append(("created_at >= ?", [norm_since]))
             if query.q:
                 if self._fts_available:
                     tokens = query.q.strip().split()
@@ -447,41 +446,48 @@ class SQLiteStore(Store):
                             if clean:
                                 formatted.append(f'"{clean}"')
                     fts_query = " ".join(formatted) if formatted else '""'
-                    conditions.append("id IN (SELECT rowid FROM posts_fts WHERE posts_fts MATCH ?)")
-                    params.append(fts_query)
+                    clause_pairs.append(("id IN (SELECT rowid FROM posts_fts WHERE posts_fts MATCH ?)", [fts_query]))
                 else:
-                    conditions.append("(text LIKE ? OR agent_slug LIKE ?)")
-                    params.extend([f"%{query.q}%", f"%{query.q}%"])
+                    escaped = escape_like(query.q)
+                    clause_pairs.append(
+                        ("(text LIKE ? ESCAPE '\\' OR agent_slug LIKE ? ESCAPE '\\')",
+                         [f"%{escaped}%", f"%{escaped}%"])
+                    )
 
             # Keyset pagination: id < cursor, ORDER BY id DESC
             if query.cursor:
                 cursor_id = decode_cursor(query.cursor)
-                conditions.append("id < ?")
-                params.append(cursor_id)
+                clause_pairs.append(("id < ?", [cursor_id]))
+
+            conditions = [sql for sql, _ in clause_pairs]
+            params = []
+            for _, p_list in clause_pairs:
+                params.extend(p_list)
 
             where = "WHERE " + " AND ".join(conditions) if conditions else ""
             limit = min(query.limit, 100)
-            params.append(limit + 1)  # fetch one extra to detect next page
+            fetch_params = list(params) + [limit + 1]
 
             sql = f"SELECT * FROM posts {where} ORDER BY id DESC LIMIT ?"
             try:
-                rows = self._conn.execute(sql, params).fetchall()
+                rows = self._conn.execute(sql, fetch_params).fetchall()
             except sqlite3.OperationalError:
-                # If FTS matching failed in feed query, fall back to LIKE
+                # If FTS matching failed in feed query, fall back to LIKE with aligned pairs
                 if query.q and self._fts_available:
                     fb_conditions = []
                     fb_params = []
-                    for cond, p in zip(conditions, params[:-1]):
-                        if "posts_fts MATCH" in cond:
-                            fb_conditions.append("(text LIKE ? OR agent_slug LIKE ?)")
-                            fb_params.extend([f"%{query.q}%", f"%{query.q}%"])
+                    escaped = escape_like(query.q)
+                    for c_sql, c_params in clause_pairs:
+                        if "posts_fts MATCH" in c_sql:
+                            fb_conditions.append("(text LIKE ? ESCAPE '\\' OR agent_slug LIKE ? ESCAPE '\\')")
+                            fb_params.extend([f"%{escaped}%", f"%{escaped}%"])
                         else:
-                            fb_conditions.append(cond)
-                            fb_params.append(p)
+                            fb_conditions.append(c_sql)
+                            fb_params.extend(c_params)
                     fb_where = "WHERE " + " AND ".join(fb_conditions) if fb_conditions else ""
-                    fb_params.append(limit + 1)
+                    fb_fetch_params = fb_params + [limit + 1]
                     rows = self._conn.execute(
-                        f"SELECT * FROM posts {fb_where} ORDER BY id DESC LIMIT ?", fb_params
+                        f"SELECT * FROM posts {fb_where} ORDER BY id DESC LIMIT ?", fb_fetch_params
                     ).fetchall()
                 else:
                     raise
@@ -578,8 +584,11 @@ class SQLiteStore(Store):
     ) -> list[Post]:
         """Fallback search using LIKE (no ranking) with optional filters."""
         assert self._conn is not None
-        conditions = ["(posts.text LIKE ? OR posts.agent_slug LIKE ? OR posts.tags LIKE ?)"]
-        params: list[Any] = [f"%{q}%", f"%{q}%", f"%{q}%"]
+        escaped_q = escape_like(q)
+        conditions = [
+            "(posts.text LIKE ? ESCAPE '\\' OR posts.agent_slug LIKE ? ESCAPE '\\' OR posts.tags LIKE ? ESCAPE '\\')"
+        ]
+        params: list[Any] = [f"%{escaped_q}%", f"%{escaped_q}%", f"%{escaped_q}%"]
 
         if agent:
             conditions.append("posts.agent_slug = ?")
@@ -592,8 +601,9 @@ class SQLiteStore(Store):
             conditions.append("posts.kind = ?")
             params.append(kind_val)
         if since:
+            norm_since = normalize_iso_timestamp(since) or since
             conditions.append("posts.created_at >= ?")
-            params.append(since)
+            params.append(norm_since)
 
         where_clause = " AND ".join(conditions)
         params.append(limit)

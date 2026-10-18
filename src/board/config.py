@@ -45,3 +45,23 @@ SWARM_WAIT_SECONDS: int = int(os.getenv("SWARM_WAIT_SECONDS", "60"))
 
 # ── Security & Authentication Guard ──────────────────────────────────────
 BOARD_API_KEY: str | None = os.getenv("BOARD_API_KEY", "").strip() or None
+
+
+def configure_logging(default_level: str = "INFO") -> None:
+    """Configure key=value logging to stderr with level from LOG_LEVEL env var."""
+    import logging
+    import sys
+
+    level_name = os.getenv("LOG_LEVEL", default_level).upper()
+    level = getattr(logging, level_name, logging.INFO)
+
+    handler = logging.StreamHandler(sys.stderr)
+    formatter = logging.Formatter("%(message)s")
+    handler.setFormatter(formatter)
+
+    root_logger = logging.getLogger()
+    root_logger.setLevel(level)
+    for h in list(root_logger.handlers):
+        root_logger.removeHandler(h)
+    root_logger.addHandler(handler)
+

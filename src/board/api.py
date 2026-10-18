@@ -70,13 +70,14 @@ def _check_api_key(request: Request) -> None:
     expected = config.BOARD_API_KEY
     if not expected:
         return
+    import hmac
     auth_header = request.headers.get("authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header[7:].strip()
-        if token == expected:
+        if hmac.compare_digest(token, expected):
             return
     api_key_header = request.headers.get("x-api-key", "").strip()
-    if api_key_header == expected:
+    if api_key_header and hmac.compare_digest(api_key_header, expected):
         return
     raise HTTPException(status_code=401, detail="Unauthorized: invalid or missing API key")
 
@@ -203,7 +204,18 @@ def create_app(
     @app.post("/agents", response_model=Agent, status_code=201)
     def register_agent(data: AgentRegister, request: Request):
         _check_api_key(request)
-        return _store(request).register_agent(data)
+        from board.feed import slugify
+        slug = slugify(data.name)
+        if not slug:
+            raise HTTPException(status_code=422, detail="Agent name produces an empty slug")
+        store = _store(request)
+        existing = store.get_agent(slug)
+        if existing and existing.name != data.name:
+            raise HTTPException(
+                status_code=409,
+                detail=f"Agent slug '{slug}' already exists with a different name ('{existing.name}')",
+            )
+        return store.register_agent(data)
 
     @app.get("/agents", response_model=list[Agent])
     def list_agents(request: Request):
@@ -264,16 +276,24 @@ def create_app(
 
     if sync_enabled:
         @app.post("/posts/sync", response_model=Post, status_code=201)
-        def create_post_sync(data: PostCreate, request: Request):
+        def create_post_sync(data: PostCreate, request: Request, response: Response):
             """Synchronous post creation (bypasses queue). Queue-bypass test hook."""
             _check_api_key(request)
             store = _store(request)
             if not store.get_agent(data.agent_slug):
                 raise HTTPException(404, f"Agent '{data.agent_slug}' not found")
+
+            is_dup = bool(data.dedupe_key and store.post_exists(data.agent_slug, data.dedupe_key))
             res = store.create_post(data)
-            if hasattr(request.app.state, "metrics") and request.app.state.metrics:
-                request.app.state.metrics.inc_posts_accepted()
-                request.app.state.metrics.inc_sync_written()
+            if is_dup:
+                response.status_code = 200
+                if hasattr(request.app.state, "metrics") and request.app.state.metrics:
+                    request.app.state.metrics.inc_precheck_duplicates()
+            else:
+                response.status_code = 201
+                if hasattr(request.app.state, "metrics") and request.app.state.metrics:
+                    request.app.state.metrics.inc_posts_accepted()
+                    request.app.state.metrics.inc_sync_written()
             return res
 
     # ── Feed ──────────────────────────────────────────────────────────────
@@ -328,7 +348,6 @@ def create_app(
         data: FollowCreate, request: Request,
         x_viewer: str | None = Header(default=None),
     ):
-        _check_api_key(request)
         viewer = _validate_viewer(x_viewer)
         store = _store(request)
         if not store.get_agent(data.agent_slug):
@@ -340,7 +359,6 @@ def create_app(
         agent_slug: str, request: Request,
         x_viewer: str | None = Header(default=None),
     ):
-        _check_api_key(request)
         viewer = _validate_viewer(x_viewer)
         removed = _store(request).remove_follow(viewer, agent_slug)
         if not removed:
@@ -362,7 +380,6 @@ def create_app(
         data: SavedViewCreate, request: Request,
         x_viewer: str | None = Header(default=None),
     ):
-        _check_api_key(request)
         viewer = _validate_viewer(x_viewer)
         return _store(request).create_saved_view(viewer, data)
 
@@ -418,7 +435,6 @@ def create_app(
         view_id: str, request: Request,
         x_viewer: str | None = Header(default=None),
     ):
-        _check_api_key(request)
         viewer = _validate_viewer(x_viewer)
         deleted = _store(request).delete_saved_view(viewer, view_id)
         if not deleted:
@@ -441,5 +457,6 @@ def create_app(
 def run_server() -> None:
     """Start the uvicorn server."""
     import uvicorn
+    config.configure_logging(default_level="INFO")
     app = create_app()
     uvicorn.run(app, host=config.HOST, port=config.PORT)

@@ -92,6 +92,22 @@ def run_demo() -> int:
         app.state.queue.flush()
     print(f"[OK] Second swarm pass verified: {swarm_res2.posts_submitted} new, {swarm_res2.posts_skipped} skipped as duplicate")
 
+    from swarm.loader import load_all_agent_specs
+    specs = load_all_agent_specs()
+    expected_work_items = sum(len(s.work_items) for s in specs) or 20
+
+    pass1_ok = (swarm_res1.posts_submitted == expected_work_items and swarm_res1.posts_failed == 0)
+    pass2_ok = (swarm_res2.posts_submitted == 0 and swarm_res2.posts_skipped == expected_work_items)
+
+    if not (pass1_ok and pass2_ok):
+        print(f"\n[ERROR] Demo validation failed: "
+              f"Pass 1 submitted {swarm_res1.posts_submitted}/{expected_work_items} new, {swarm_res1.posts_failed} failed (expected 0); "
+              f"Pass 2 submitted {swarm_res2.posts_submitted} new (expected 0), {swarm_res2.posts_skipped}/{expected_work_items} skipped.")
+        server.should_exit = True
+        thread.join(timeout=5)
+        store.close()
+        return 1
+
     # Query Registered Agents
     with httpx.Client(base_url=base) as client:
         agents = client.get("/agents").json()

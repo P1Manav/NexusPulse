@@ -260,6 +260,20 @@ def test_board_api_key_enforcement(store):
             )
             assert r_x_key.status_code == 201
 
+            # 6. Follows and saved views stay open without key (viewer identity is advisory)
+            r_follow = client.post("/follows", json={"agent_slug": "guarded-agent"})
+            assert r_follow.status_code == 201
+
+            r_unfollow = client.delete("/follows/guarded-agent")
+            assert r_unfollow.status_code == 200
+
+            r_view = client.post("/views", json={"name": "Open View", "filters": {}})
+            assert r_view.status_code == 201
+            view_id = r_view.json()["id"]
+
+            r_del_view = client.delete(f"/views/{view_id}")
+            assert r_del_view.status_code == 200
+
 
 def test_swarm_runner_loop_flag_handling():
     """Test that run_swarm_cli accepts loop and interval flags gracefully."""

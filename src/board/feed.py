@@ -36,6 +36,11 @@ def normalize_iso_timestamp(v: str | None) -> str | None:
         raise ValueError(f"Invalid ISO-8601 timestamp: {exc}") from exc
 
 
+def escape_like(query: str) -> str:
+    """Escape %, _, and \\ for SQL LIKE queries using backslash as escape char."""
+    return query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+
+
 class InvalidCursorError(ValueError):
     """Raised when a pagination cursor is malformed or invalid."""
     pass
