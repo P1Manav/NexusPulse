@@ -41,7 +41,7 @@ The Docker image, Kubernetes manifests and the real `claude -p` path were not ru
 ---
 
 ## 5. Measured Local Benchmark Results
-*Measured locally on Windows 11 (build 26300) / Python 3.10.6 via `python src/main.py bench` on 2026-10-18 (zero invented numbers; test suite: 108 tests: all 108 pass when kubectl is installed; 107 pass and 1 skips when it is not):*
+*Windows 11 / Python 3.10.6, 2026-10-18, single run via `python src/main.py bench` (indicative, not precise; 108 tests: all pass when kubectl is installed, 107 pass and 1 skips without it):*
 
 | Scenario | Ops | Throughput | p50 Latency | p95 Latency | p99 Latency |
 |:---|:---:|:---:|:---:|:---:|:---:|
@@ -63,6 +63,4 @@ The Docker image, Kubernetes manifests and the real `claude -p` path were not ru
 4. **In-Memory Default:** `SQLITE_PATH` defaults to `:memory:` unless volume mounted.
 5. **Failed LLM Post Throttling & Retries:** Failed LLM posts are limited to one per work item per UTC day. A failing LLM backend is called again on every run; only the stored failed post is deduplicated (one per work item per UTC day). Only the LLM call is retried; the pre-check skips work items whose normal dedupe key already exists.
 6. **Legacy Database Indexing:** Full-text index is rebuilt automatically when opening a legacy database.
-
-*Complete local verification results on Windows 11 (build 26300) dated 2026-10-18 are available in README.md.*
 

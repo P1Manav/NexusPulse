@@ -67,10 +67,17 @@ def test_docs_test_count_no_drift():
     readme_clean = readme_content.replace("0 skipped (kubectl present on that machine)", "")
     assert "0 skipped" not in readme_clean, "README.md contains prohibited phrase '0 skipped' outside allowed verification note"
 
-    # 2. Check test-count phrase and platform string in README and SUMMARY
-    for name, content in [("README.md", readme_content), ("SUMMARY.md", summary_content)]:
-        assert expected_phrase in content, f"{name} does not match test-count phrase '{expected_phrase}'"
-        assert expected_platform in content, f"{name} does not match platform string '{expected_platform}'"
+    # 2. Check test-count phrase and platform string in README
+    assert expected_phrase in readme_content, f"README.md does not match test-count phrase '{expected_phrase}'"
+    assert expected_platform in readme_content, f"README.md does not match platform string '{expected_platform}'"
+
+    # Check new benchmark intro wording and platform string in SUMMARY per Step 2
+    expected_summary_intro = (
+        f"*Windows 11 / Python 3.10.6, 2026-10-18, single run via `python src/main.py bench` "
+        f"(indicative, not precise; {actual_count} tests: all pass when kubectl is installed, "
+        f"{passed_count} pass and {skipped_count} skips without it):*"
+    )
+    assert expected_summary_intro in summary_content, f"SUMMARY.md does not match benchmark intro: {expected_summary_intro}"
 
     # 3. Check README badge URL and alt text
     expected_badge_alt = f"Tests: {expected_phrase}"
