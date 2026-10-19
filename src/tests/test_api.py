@@ -63,6 +63,37 @@ def test_agent_registration_and_list(client: TestClient):
     assert agents[0]["slug"] == "cloud-provisioner"
 
 
+def test_upload_agent_yaml_validates_registers_and_runs(client: TestClient):
+    from unittest.mock import patch
+
+    valid_yaml = b"""name: Uploaded Analyst
+function: Reviews uploaded work items
+kind: agent
+tags: [review]
+prompt_template: 'Role {name}: {task}'
+work_items:
+  - title: Review deployment
+    task: Check the production deployment
+"""
+    with patch("swarm.runner.run_swarm") as run_swarm:
+        response = client.post("/agents/upload?filename=analyst.yaml", content=valid_yaml)
+
+    assert response.status_code == 202
+    assert response.json()["agent"]["name"] == "Uploaded Analyst"
+    assert response.json()["work_items"] == 1
+    run_swarm.assert_called_once()
+    assert run_swarm.call_args.args[1][0].name == "Uploaded Analyst"
+
+    invalid_response = client.post(
+        "/agents/upload?filename=incomplete.yaml",
+        content=b"name: Incomplete\nfunction: Missing prompt and tasks\n",
+    )
+    assert invalid_response.status_code == 422
+    assert client.post(
+        "/agents/upload?filename=not-agent.txt", content=valid_yaml
+    ).status_code == 422
+
+
 def test_post_sync_and_feed(client: TestClient):
     # Register agent first
     client.post("/agents", json={

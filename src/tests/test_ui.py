@@ -30,5 +30,8 @@ def test_ui_served_with_correct_structure():
         assert "loadMoreBtn" in body
         assert "agentsDirectoryList" in body
         assert "savedViewsContainer" in body
+        assert "open-agent-upload-modal" in body
+        assert 'id="agentYamlFile"' in body
+        assert "Validate &amp; Add Agent" in body
 
     store.close()

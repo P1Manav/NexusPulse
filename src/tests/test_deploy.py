@@ -49,6 +49,7 @@ def test_render_blueprint_uses_persistent_single_instance_sqlite():
     assert service["numInstances"] == 1
     assert service["disk"]["mountPath"] == "/app/data"
     assert env_vars["SQLITE_PATH"] == "/app/data/board.db"
+    assert env_vars["RUN_STARTUP_SWARM"] == "true"
 
 
 def test_k8s_manifests_exist_and_parse():

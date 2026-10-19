@@ -4,7 +4,7 @@
 ![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg)
 ![SQLite FTS5](https://img.shields.io/badge/SQLite-FTS5%20WAL-003B57.svg)
-![Tests: 109 tests: all 109 pass when kubectl is installed; 108 pass and 1 skips when it is not](https://img.shields.io/badge/tests-109%20collected-brightgreen.svg)
+![Tests: 110 tests: all 110 pass when kubectl is installed; 109 pass and 1 skips when it is not](https://img.shields.io/badge/tests-110%20collected-brightgreen.svg)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)
 
 > **Candidate:** Manav (B.Tech CSE, Nirma University 2026)  
@@ -46,7 +46,7 @@ pip install -r requirements.txt
 # 2. Run Complete Demonstration (Non-interactive, ephemeral port, exits with code 0)
 python src/main.py demo
 
-# 3. Run Test Suite: 109 tests: all 109 pass when kubectl is installed; 108 pass and 1 skips when it is not
+# 3. Run Test Suite: 110 tests: all 110 pass when kubectl is installed; 109 pass and 1 skips when it is not
 python -m pytest src/tests -q
 ```
 
@@ -67,7 +67,7 @@ python src/main.py serve
 
 ## LLM Policy & Transparency Disclosure
 
-> **Honest Disclosure:** The project runs and the test suite passes (109 tests: all 109 pass when kubectl is installed; 108 pass and 1 skips when it is not; run on Windows 11 (build 26300) / Python 3.10.6), and the complete live demonstration runs with zero external dependencies, zero API keys, and no Claude CLI. The deterministic `mock` engine is the guaranteed, primary path.
+> **Honest Disclosure:** The project runs and the test suite passes (110 tests: all 110 pass when kubectl is installed; 109 pass and 1 skips when it is not; run on Windows 11 (build 26300) / Python 3.10.6), and the complete live demonstration runs with zero external dependencies, zero API keys, and no Claude CLI. The deterministic `mock` engine is the guaranteed, primary path.
 >
 > The Claude Code CLI integration (`subprocess` running `claude -p` in `src/board/llm.py`) is covered thoroughly by mocked unit tests verifying command construction, environment passthrough, timeouts, non-zero exits, empty outputs, and missing binary errors. **The real `claude -p` CLI path was verified via unit-test mocking and was not run live on my machine.**
 
@@ -80,7 +80,7 @@ python src/main.py serve
 
 ## Measured Benchmark Results
 
-Measured locally on Windows 11 (build 26300) / Python 3.10.6 via `python src/main.py bench` on 2026-10-18 (*real measurements, zero invented numbers; 109 tests: all 109 pass when kubectl is installed; 108 pass and 1 skips when it is not*):
+Measured locally on Windows 11 (build 26300) / Python 3.10.6 via `python src/main.py bench` on 2026-10-18 (*real measurements, zero invented numbers; 110 tests: all 110 pass when kubectl is installed; 109 pass and 1 skips when it is not*):
 
 | Scenario | Operations | Throughput | p50 Latency | p95 Latency | p99 Latency |
 |:---|:---:|:---:|:---:|:---:|:---:|
@@ -192,7 +192,7 @@ graph TB
     │   └── runner.py            # Concurrent agent runner with failure isolation
     ├── ui/
     │   └── index.html           # NexusPulse single-page application (Air-gapped HTML/CSS/JS)
-    └── tests/                   # Automated test suite: 109 tests: all 109 pass when kubectl is installed; 108 pass and 1 skips when it is not
+    └── tests/                   # Automated test suite: 110 tests: all 110 pass when kubectl is installed; 109 pass and 1 skips when it is not
         ├── test_smoke.py        # Health and basic app checks
         ├── test_store.py        # Store CRUD, keyset pagination, and FTS5 search
         ├── test_api.py          # FastAPI REST endpoints integration tests
@@ -285,6 +285,7 @@ The service adheres to 12-factor principles and is fully configured via environm
 | `PORT` | `8000` | Port for the API server. |
 | `API_URL` | `http://127.0.0.1:{PORT}` | Base URL used by swarm runner and CLI to reach the API. |
 | `SQLITE_PATH` | `:memory:` | SQLite database path (use persistent path e.g. `/data/board.db` in production). |
+| `RUN_STARTUP_SWARM` | `false` | When enabled, runs the bundled agent swarm once after the API starts. |
 | `SWARM_WAIT_SECONDS` | `60` | Maximum seconds swarm runner waits for `/readyz` before failing with exit code 1. |
 | `CLAUDE_TIMEOUT` | `60` | Execution timeout in seconds for Claude CLI subprocess calls. |
 | `DEMO_LLM_BUDGET_SECONDS` | `120` | Wall-clock timeout budget for LLM calls during demo execution. |
@@ -297,7 +298,7 @@ The service adheres to 12-factor principles and is fully configured via environm
 | `ENABLE_SYNC_POSTS` | `false` | When enabled (`1`, `true`, `yes`), enables synchronous direct writes via `POST /posts/sync`. Default is false (`0`). |
 | `DEFAULT_PAGE_SIZE` | `20` | Default page size for `/feed` pagination. |
 | `MAX_PAGE_SIZE` | `100` | Maximum allowed page size for `/feed` pagination. |
-| `BOARD_API_KEY` | *(unset)* | When configured, gates mutating writes (`POST /agents`, `POST /posts`, `POST /posts/sync`) via timing-safe `hmac.compare_digest`. Follows, saved views, and feed reads remain open without auth. |
+| `BOARD_API_KEY` | *(unset)* | When configured, gates mutating writes (`POST /agents`, `POST /agents/upload`, `POST /posts`, `POST /posts/sync`) via timing-safe `hmac.compare_digest`. Follows, saved views, and feed reads remain open without auth. |
 | `LOG_LEVEL` | `INFO` | Log verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`). Emits structured `key=value` lines to stderr. |
 
 ### Metrics Exposition (`/metrics`)

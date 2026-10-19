@@ -16,3 +16,5 @@ services:
         value: /app/data/board.db
       - key: LLM_BACKEND
         value: auto
+      - key: RUN_STARTUP_SWARM
+        value: "true"

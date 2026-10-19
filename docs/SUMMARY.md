@@ -41,7 +41,7 @@ The Docker image, Kubernetes manifests and the real `claude -p` path were not ru
 ---
 
 ## 5. Measured Local Benchmark Results
-*Windows 11 / Python 3.10.6, 2026-10-18, single run via `python src/main.py bench` (indicative, not precise; 109 tests: all pass when kubectl is installed, 108 pass and 1 skips without it):*
+*Windows 11 / Python 3.10.6, 2026-10-18, single run via `python src/main.py bench` (indicative, not precise; 110 tests: all pass when kubectl is installed, 109 pass and 1 skips without it):*
 
 | Scenario | Ops | Throughput | p50 Latency | p95 Latency | p99 Latency |
 |:---|:---:|:---:|:---:|:---:|:---:|

@@ -33,9 +33,11 @@ import time
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Header, Query, Request, Response
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Header, Query, Request, Response
 from fastapi.responses import FileResponse, HTMLResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import ValidationError
+import yaml
 
 from board import config
 from board.metrics import MetricsCollector
@@ -102,6 +104,11 @@ async def lifespan(app: FastAPI):
             batch_size=config.POST_BATCH_SIZE,
             batch_interval_ms=config.POST_BATCH_INTERVAL_MS,
         )
+    if config.RUN_STARTUP_SWARM:
+        from threading import Thread
+        from swarm.runner import run_swarm_cli
+
+        Thread(target=run_swarm_cli, name="startup-swarm", daemon=True).start()
     yield
     if hasattr(app.state, "queue") and app.state.queue is not None:
         app.state.queue.close()
@@ -220,6 +227,56 @@ def create_app(
     @app.get("/agents", response_model=list[Agent])
     def list_agents(request: Request):
         return _store(request).list_agents()
+
+    @app.post("/agents/upload", status_code=202)
+    async def upload_agent_yaml(
+        request: Request,
+        background_tasks: BackgroundTasks,
+        filename: str = Query(..., min_length=1, max_length=255),
+    ):
+        _check_api_key(request)
+        if Path(filename).suffix.lower() not in {".yaml", ".yml"}:
+            raise HTTPException(422, "Upload must be a .yaml or .yml file")
+        content_length = request.headers.get("content-length")
+        if content_length and int(content_length) > 1_048_576:
+            raise HTTPException(413, "Agent YAML files must be 1 MiB or smaller")
+        content = await request.body()
+        if len(content) > 1_048_576:
+            raise HTTPException(413, "Agent YAML files must be 1 MiB or smaller")
+        try:
+            raw_spec = yaml.safe_load(content.decode("utf-8"))
+        except (UnicodeDecodeError, yaml.YAMLError) as exc:
+            raise HTTPException(422, f"Invalid YAML file: {exc}") from exc
+        if not isinstance(raw_spec, dict):
+            raise HTTPException(422, "Agent YAML must contain a mapping at its root")
+
+        from swarm.loader import AgentSpec
+        from swarm.runner import run_swarm
+
+        try:
+            spec = AgentSpec.model_validate(raw_spec)
+        except ValidationError as exc:
+            raise HTTPException(422, detail=exc.errors(include_url=False)) from exc
+        if not spec.work_items:
+            raise HTTPException(422, "Agent YAML must define at least one work item")
+        try:
+            spec.prompt_template.format(name=spec.name, function=spec.function, task="task", title="title")
+        except (KeyError, ValueError, IndexError) as exc:
+            raise HTTPException(422, f"Invalid prompt_template format: {exc}") from exc
+
+        agent = _store(request).register_agent(AgentRegister(
+            name=spec.name,
+            function=spec.function,
+            kind=spec.kind,
+            tags=spec.tags,
+        ))
+        base_url = f"http://127.0.0.1:{config.PORT}"
+        background_tasks.add_task(run_swarm, base_url, [spec])
+        return {
+            "status": "accepted",
+            "agent": agent.model_dump(mode="json"),
+            "work_items": len(spec.work_items),
+        }
 
     # ── Posts ──────────────────────────────────────────────────────────────
 

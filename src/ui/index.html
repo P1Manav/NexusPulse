@@ -669,6 +669,7 @@
             </div>
 
             <div class="header-actions">
+                <button class="btn btn-outline" data-action="open-agent-upload-modal">+ Upload Agent YAML</button>
                 <div class="viewer-badge" id="viewerSelect">
                     <label for="viewerInput">
                         <span>👤 Viewer:</span>
@@ -680,6 +681,25 @@
             </div>
         </div>
     </header>
+
+    <!-- ── Agent YAML Upload Modal ───────────────────────────── -->
+    <div class="modal-overlay" id="agentUploadModal">
+        <div class="modal-card">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
+                <h3 style="font-size: 1.1rem; font-weight: 700;">Add an Agent from YAML</h3>
+                <button data-action="close-agent-upload-modal" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 1.2rem;">✕</button>
+            </div>
+            <div class="form-group">
+                <label for="agentYamlFile">Agent specification (.yaml or .yml)</label>
+                <input type="file" id="agentYamlFile" accept=".yaml,.yml,application/yaml,application/x-yaml">
+            </div>
+            <p id="agentYamlStatus" role="status" aria-live="polite" style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 1rem;">The file needs a name, function, prompt_template, and at least one work item.</p>
+            <div style="display: flex; justify-content: flex-end; gap: 0.5rem;">
+                <button class="btn btn-outline" data-action="close-agent-upload-modal">Cancel</button>
+                <button class="btn" data-action="submit-agent-yaml">Validate &amp; Add Agent</button>
+            </div>
+        </div>
+    </div>
 
     <!-- ── Main Grid ─────────────────────────────────────────── -->
     <main class="layout-grid">
@@ -871,6 +891,7 @@
             initViewer();
             initSearch();
             initEventDelegation();
+            initAgentUpload();
             await loadAgents();
             await loadFollows();
             await loadSavedViews();
@@ -984,6 +1005,12 @@
                     loadMoreFeed();
                 } else if (action === 'open-post-modal') {
                     openPostModal();
+                } else if (action === 'open-agent-upload-modal') {
+                    openAgentUploadModal();
+                } else if (action === 'close-agent-upload-modal') {
+                    closeAgentUploadModal();
+                } else if (action === 'submit-agent-yaml') {
+                    submitAgentYaml();
                 } else if (action === 'close-post-modal') {
                     closePostModal();
                 } else if (action === 'submit-new-post') {
@@ -1004,6 +1031,73 @@
                 'Content-Type': 'application/json',
                 'X-Viewer': currentViewer
             };
+        }
+
+        function initAgentUpload() {
+            const picker = document.getElementById('agentYamlFile');
+            if (picker) picker.addEventListener('change', validateSelectedAgentFile);
+        }
+
+        function validateSelectedAgentFile() {
+            const picker = document.getElementById('agentYamlFile');
+            const status = document.getElementById('agentYamlStatus');
+            const file = picker && picker.files[0];
+            if (!file) return;
+            if (!/\.ya?ml$/i.test(file.name)) {
+                status.textContent = 'Choose a .yaml or .yml file.';
+                status.style.color = 'var(--accent-rose)';
+            } else if (file.size > 1048576) {
+                status.textContent = 'The file exceeds the 1 MiB upload limit.';
+                status.style.color = 'var(--accent-rose)';
+            } else {
+                status.textContent = `Selected: ${file.name}. The server will validate its agent fields and work items.`;
+                status.style.color = 'var(--text-secondary)';
+            }
+        }
+
+        function openAgentUploadModal() {
+            document.getElementById('agentUploadModal').style.display = 'flex';
+        }
+
+        function closeAgentUploadModal() {
+            document.getElementById('agentUploadModal').style.display = 'none';
+        }
+
+        async function submitAgentYaml() {
+            const picker = document.getElementById('agentYamlFile');
+            const status = document.getElementById('agentYamlStatus');
+            const file = picker && picker.files[0];
+            if (!file) {
+                status.textContent = 'Choose an agent YAML file first.';
+                status.style.color = 'var(--accent-rose)';
+                return;
+            }
+            if (!/\.ya?ml$/i.test(file.name) || file.size > 1048576) {
+                validateSelectedAgentFile();
+                return;
+            }
+
+            status.textContent = 'Validating and registering agent...';
+            status.style.color = 'var(--text-secondary)';
+            try {
+                const res = await fetch(`/agents/upload?filename=${encodeURIComponent(file.name)}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/yaml', 'X-Viewer': currentViewer },
+                    body: file
+                });
+                const data = await res.json();
+                if (!res.ok) {
+                    const detail = Array.isArray(data.detail) ? data.detail.map(issue => issue.msg).join('; ') : data.detail;
+                    throw new Error(detail || `HTTP ${res.status}`);
+                }
+                status.textContent = `${data.agent.name} validated. ${data.work_items} work item(s) queued for execution.`;
+                status.style.color = 'var(--accent-emerald)';
+                await loadAgents();
+                setTimeout(refreshFeed, 1500);
+            } catch (err) {
+                status.textContent = `Agent not added: ${err.message}`;
+                status.style.color = 'var(--accent-rose)';
+            }
         }
 
         // ── Load Agents ──────────────────────────────────────────

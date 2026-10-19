@@ -45,6 +45,7 @@ SWARM_WAIT_SECONDS: int = int(os.getenv("SWARM_WAIT_SECONDS", "60"))
 
 # ── Security & Authentication Guard ──────────────────────────────────────
 BOARD_API_KEY: str | None = os.getenv("BOARD_API_KEY", "").strip() or None
+RUN_STARTUP_SWARM: bool = os.getenv("RUN_STARTUP_SWARM", "0").lower() in ("1", "true", "yes")
 
 
 def configure_logging(default_level: str = "INFO") -> None:
