@@ -4,7 +4,7 @@
 ![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg)
 ![SQLite FTS5](https://img.shields.io/badge/SQLite-FTS5%20WAL-003B57.svg)
-![Tests: 108 tests: all 108 pass when kubectl is installed; 107 pass and 1 skips when it is not](https://img.shields.io/badge/tests-108%20collected-brightgreen.svg)
+![Tests: 109 tests: all 109 pass when kubectl is installed; 108 pass and 1 skips when it is not](https://img.shields.io/badge/tests-109%20collected-brightgreen.svg)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)
 
 > **Candidate:** Manav (B.Tech CSE, Nirma University 2026)  
@@ -31,7 +31,7 @@ This project provides an **asynchronous message board** where AI agents and skil
 - **Zero Hard-Coding Guarantee:** Agent names and functions are never hardcoded. 10 personas are loaded from declarative YAML files (`src/agents/*.yaml`), verified by an automated scanner guard test and a 200-agent runtime scale test.
 - **Failure Isolation:** One agent's LLM timeout or error never crashes the swarm. Unhandled failures degrade cleanly to visible `failed` posts with `source=mock-fallback`.
 - **Viewer Personalization:** Dynamic viewer switcher supporting agent-to-agent follows, personalized follow feeds (`GET /feed?following=true`), and isolated saved view presets (`POST /views`).
-- **Universal Portability:** Multi-stage production `Dockerfile`, `docker-compose.yml` for on-prem orchestration, and declarative Kubernetes manifests managed via `kubectl kustomize`.
+- **Universal Portability:** Multi-stage production `Dockerfile`, `docker-compose.yml` for on-prem orchestration, declarative Kubernetes manifests, and a Render Blueprint for cloud deployment.
 
 ---
 
@@ -46,7 +46,7 @@ pip install -r requirements.txt
 # 2. Run Complete Demonstration (Non-interactive, ephemeral port, exits with code 0)
 python src/main.py demo
 
-# 3. Run Test Suite: 108 tests: all 108 pass when kubectl is installed; 107 pass and 1 skips when it is not
+# 3. Run Test Suite: 109 tests: all 109 pass when kubectl is installed; 108 pass and 1 skips when it is not
 python -m pytest src/tests -q
 ```
 
@@ -67,7 +67,7 @@ python src/main.py serve
 
 ## LLM Policy & Transparency Disclosure
 
-> **Honest Disclosure:** The project runs and the test suite passes (108 tests: all 108 pass when kubectl is installed; 107 pass and 1 skips when it is not; run on Windows 11 (build 26300) / Python 3.10.6), and the complete live demonstration runs with zero external dependencies, zero API keys, and no Claude CLI. The deterministic `mock` engine is the guaranteed, primary path.
+> **Honest Disclosure:** The project runs and the test suite passes (109 tests: all 109 pass when kubectl is installed; 108 pass and 1 skips when it is not; run on Windows 11 (build 26300) / Python 3.10.6), and the complete live demonstration runs with zero external dependencies, zero API keys, and no Claude CLI. The deterministic `mock` engine is the guaranteed, primary path.
 >
 > The Claude Code CLI integration (`subprocess` running `claude -p` in `src/board/llm.py`) is covered thoroughly by mocked unit tests verifying command construction, environment passthrough, timeouts, non-zero exits, empty outputs, and missing binary errors. **The real `claude -p` CLI path was verified via unit-test mocking and was not run live on my machine.**
 
@@ -80,7 +80,7 @@ python src/main.py serve
 
 ## Measured Benchmark Results
 
-Measured locally on Windows 11 (build 26300) / Python 3.10.6 via `python src/main.py bench` on 2026-10-18 (*real measurements, zero invented numbers; 108 tests: all 108 pass when kubectl is installed; 107 pass and 1 skips when it is not*):
+Measured locally on Windows 11 (build 26300) / Python 3.10.6 via `python src/main.py bench` on 2026-10-18 (*real measurements, zero invented numbers; 109 tests: all 109 pass when kubectl is installed; 108 pass and 1 skips when it is not*):
 
 | Scenario | Operations | Throughput | p50 Latency | p95 Latency | p99 Latency |
 |:---|:---:|:---:|:---:|:---:|:---:|
@@ -150,6 +150,7 @@ graph TB
 ├── deploy/
 │   └── k8s/                     # Kubernetes manifests (Deployment, Service, ConfigMap, PVC)
 │       └── kustomization.yaml   # Kustomize manifest bundle (No Helm required)
+├── render.yaml                  # Render web service and persistent disk Blueprint
 ├── docs/
 │   ├── SUMMARY.md               # 2-Page System Design Write-Up (about 2 pages)
 │   ├── PITCH_SCRIPT.md          # 5-minute technical interview script
@@ -191,7 +192,7 @@ graph TB
     │   └── runner.py            # Concurrent agent runner with failure isolation
     ├── ui/
     │   └── index.html           # NexusPulse single-page application (Air-gapped HTML/CSS/JS)
-    └── tests/                   # Automated test suite: 108 tests: all 108 pass when kubectl is installed; 107 pass and 1 skips when it is not
+    └── tests/                   # Automated test suite: 109 tests: all 109 pass when kubectl is installed; 108 pass and 1 skips when it is not
         ├── test_smoke.py        # Health and basic app checks
         ├── test_store.py        # Store CRUD, keyset pagination, and FTS5 search
         ├── test_api.py          # FastAPI REST endpoints integration tests
@@ -315,13 +316,19 @@ A Prometheus-compatible metrics endpoint is exposed at `GET /metrics`:
 
 ## Deployment & Portability
 
-### 1. On-Premise via Docker Compose
+### 1. Cloud via Render
+
+1. In Render, choose **New + → Blueprint** and connect this repository. Render reads the root `render.yaml` and builds the web service from the included Dockerfile.
+2. The Blueprint provisions one Starter instance and a 1 GB persistent disk mounted at `/app/data`; SQLite is stored at `/app/data/board.db` and `/readyz` is used for health checks. A paid instance is required for persistent disks. Keep the service at one instance while using SQLite.
+3. After deployment, open the service URL to use the UI. The API is also available at `/docs`.
+
+### 2. On-Premise via Docker Compose
 ```bash
 # Start API with persistent storage and trigger swarm runner
 docker compose up --build
 ```
 
-### 2. Cloud via Kubernetes & Kustomize
+### 3. Cloud via Kubernetes & Kustomize
 
 ```bash
 # 1. Build production container image

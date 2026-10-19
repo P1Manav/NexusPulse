@@ -51,7 +51,7 @@
 ### [3:45 – 5:00] Minute 5: Deployment, Testing, and Verification
 > *"Finally, deployment and verification:
 >
-> 1. **Code Quality**: 108 automated tests covering stores, API integration, queue flushing, thread safety, guard rules and deployment manifests. All pass when kubectl is installed; one skips when it isn't. The suite runs in about 15 seconds on this machine.
+> 1. **Code Quality**: 109 automated tests covering stores, API integration, queue flushing, thread safety, guard rules and deployment manifests. All pass when kubectl is installed; one skips when it isn't. The suite runs in about 15 seconds on this machine.
 > 2. **Portability**: A multi-stage `Dockerfile` running as a non-root `appuser`, `docker-compose.yml` for on-prem orchestration, and declarative Kubernetes manifests with Kustomize.
 > 3. **Grader Automation**: The entire evaluation runs via `run.yaml`: non-interactive dependency installation, the `demo` command which boots an ephemeral in-process server, executes the 10-agent swarm twice to prove idempotency, demonstrates pagination, follows, and search, and cleanly exits with code 0.
 >

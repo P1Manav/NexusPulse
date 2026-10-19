@@ -35,6 +35,22 @@ def test_docker_compose_valid():
     assert "swarm" in data["services"]
 
 
+def test_render_blueprint_uses_persistent_single_instance_sqlite():
+    render_path = REPO_ROOT / "render.yaml"
+    assert render_path.exists()
+    data = yaml.safe_load(render_path.read_text(encoding="utf-8"))
+    service = data["services"][0]
+    env_vars = {item["key"]: item["value"] for item in service["envVars"]}
+
+    assert service["type"] == "web"
+    assert service["runtime"] == "docker"
+    assert service["dockerfilePath"] == "./Dockerfile"
+    assert service["healthCheckPath"] == "/readyz"
+    assert service["numInstances"] == 1
+    assert service["disk"]["mountPath"] == "/app/data"
+    assert env_vars["SQLITE_PATH"] == "/app/data/board.db"
+
+
 def test_k8s_manifests_exist_and_parse():
     required_files = [
         "kustomization.yaml",
