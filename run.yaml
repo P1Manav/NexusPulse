@@ -1,4 +1,4 @@
-# run.yaml — Grader entry point
+# run.yaml — Automated evaluation entry point
 # These commands are run EXACTLY, in order, from a fresh checkout.
 # All commands are non-interactive and idempotent.
 

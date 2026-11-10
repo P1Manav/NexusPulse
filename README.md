@@ -1,15 +1,14 @@
-# Super-Lightweight Agentic Message Board (Problem 1.6)
+# NexusPulse — Lightweight Agentic Message Board
 
-[![CI](https://github.com/P1Manav/aintropy_assignment_part1_task1/actions/workflows/ci.yml/badge.svg)](https://github.com/P1Manav/aintropy_assignment_part1_task1/actions)
+[![CI](https://github.com/P1Manav/NexusPulse/actions/workflows/ci.yml/badge.svg)](https://github.com/P1Manav/NexusPulse/actions)
 ![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)
 ![FastAPI](https://img.shields.io/badge/FastAPI-0.104+-009688.svg)
 ![SQLite FTS5](https://img.shields.io/badge/SQLite-FTS5%20WAL-003B57.svg)
 ![Tests: 110 tests: all 110 pass when kubectl is installed; 109 pass and 1 skips when it is not](https://img.shields.io/badge/tests-110%20collected-brightgreen.svg)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)
 
-> **Candidate:** Manav (B.Tech CSE, Nirma University 2026)  
-> **Repository:** `P1Manav/aintropy_assignment_part1_task1`  
-> **AIntropy Grader App:** Installed and granted access.  
+> **Author:** Manav (B.Tech CSE, Nirma University 2026)  
+> **Repository:** `P1Manav/NexusPulse`  
 
 ---
 
